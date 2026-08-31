@@ -7,6 +7,8 @@ import (
 	"log"
 	"os"
 	"time"
+
+	_ "github.com/lib/pq"
 )
 
 // GetConnectionURL builds the PostgreSQL connection string
@@ -31,6 +33,7 @@ func GetConnectionURL() string {
 
 func Connect(databaseURL string) (*sql.DB, error) {
 	db, err := sql.Open("postgres", databaseURL)
+	fmt.Print(databaseURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}

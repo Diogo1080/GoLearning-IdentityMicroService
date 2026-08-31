@@ -1,11 +1,13 @@
 package domain
 
+import "time"
+
 type User struct {
-	ID       int64  `json:"id"`
-	Email    string `json:"email"`
-	Username string `json:"username"`
-	Password string `json:"password"`
-	Birthday string `json:"birthday"`
+	ID       int64     `json:"id"`
+	Email    string    `json:"email"`
+	Username string    `json:"username"`
+	Password string    `json:"password"`
+	Birthday time.Time `json:"birthday"`
 }
 
 type UserDTO struct {
@@ -20,6 +22,6 @@ func (u *User) ToUserDTO() UserDTO {
 		ID:       int(u.ID),
 		Email:    u.Email,
 		Username: u.Username,
-		Birthday: u.Birthday,
+		Birthday: u.Birthday.String(),
 	}
 }

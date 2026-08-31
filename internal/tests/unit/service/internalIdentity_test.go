@@ -1,0 +1,268 @@
+package tests
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	authv1 "GoLearning-IdentityMicroService/api/v1"
+	entities "GoLearning-IdentityMicroService/internal/domain"
+	"GoLearning-IdentityMicroService/internal/service"
+	redisrepo "GoLearning-IdentityMicroService/internal/store"
+	"GoLearning-IdentityMicroService/internal/tests/mocks"
+	"GoLearning-IdentityMicroService/internal/tokens"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+const testUserID = "42"
+
+// ------------------------------------------------------------
+// Helpers
+// ------------------------------------------------------------
+
+func issueTestTokens(t *testing.T) *tokens.Tokens {
+	t.Helper()
+
+	tokenPair, err := tokens.IssueTokens(testUserID)
+	require.NoError(t, err)
+	require.NotNil(t, tokenPair)
+
+	return tokenPair
+}
+
+func persistAccessToken(t *testing.T, rdb *redisrepo.Redis, accessToken string) {
+	t.Helper()
+
+	claims, err := tokens.ParseAccess(accessToken)
+	require.NoError(t, err)
+
+	err = rdb.SetJTI(
+		context.Background(),
+		"access:"+claims.ID,
+		testUserID,
+		time.Now().Add(15*time.Minute),
+	)
+	require.NoError(t, err)
+}
+
+func persistRefreshToken(t *testing.T, rdb *redisrepo.Redis, refreshToken string) {
+	t.Helper()
+
+	claims, err := tokens.ParseRefresh(refreshToken)
+	require.NoError(t, err)
+
+	err = rdb.SetJTI(
+		context.Background(),
+		"refresh:"+claims.ID,
+		testUserID,
+		time.Now().Add(7*24*time.Hour),
+	)
+	require.NoError(t, err)
+}
+
+// ============================================================
+// VALIDATE TOKEN
+// ============================================================
+
+func TestValidateToken_Success(t *testing.T) {
+	rdb, _ := mocks.NewTestRedis(t)
+	mockIdentityRepo := &mocks.MockIdentityRepository{}
+	svc := service.NewInternalIdentityService(mockIdentityRepo, rdb)
+
+	tokenPair := issueTestTokens(t)
+
+	persistAccessToken(t, rdb, tokenPair.Access)
+
+	resp, err := svc.ValidateToken(
+		context.Background(),
+		&authv1.ValidateTokenRequest{
+			Token: tokenPair.Access,
+		},
+	)
+
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+
+	assert.Equal(t, int32(42), resp.UserId)
+}
+
+func TestValidateToken_InvalidToken(t *testing.T) {
+	rdb, _ := mocks.NewTestRedis(t)
+	mockIdentityRepo := &mocks.MockIdentityRepository{}
+	svc := service.NewInternalIdentityService(mockIdentityRepo, rdb)
+
+	resp, err := svc.ValidateToken(
+		context.Background(),
+		&authv1.ValidateTokenRequest{
+			Token: "invalid-token",
+		},
+	)
+
+	assert.Nil(t, resp)
+	assert.ErrorIs(t, err, entities.ErrBadData)
+}
+
+func TestValidateToken_TokenNotFoundInRedis(t *testing.T) {
+	rdb, _ := mocks.NewTestRedis(t)
+	mockIdentityRepo := &mocks.MockIdentityRepository{}
+	svc := service.NewInternalIdentityService(mockIdentityRepo, rdb)
+
+	tokenPair := issueTestTokens(t)
+
+	// JWT is valid, but its JTI is not in Redis.
+	resp, err := svc.ValidateToken(
+		context.Background(),
+		&authv1.ValidateTokenRequest{
+			Token: tokenPair.Access,
+		},
+	)
+
+	assert.Nil(t, resp)
+	assert.ErrorIs(t, err, entities.ErrNotFound)
+}
+
+func TestValidateToken_ExpiredRedisEntry(t *testing.T) {
+	rdb, mr := mocks.NewTestRedis(t)
+	mockIdentityRepo := &mocks.MockIdentityRepository{}
+	svc := service.NewInternalIdentityService(mockIdentityRepo, rdb)
+
+	tokenPair := issueTestTokens(t)
+
+	claims, err := tokens.ParseAccess(tokenPair.Access)
+	require.NoError(t, err)
+
+	err = rdb.SetJTI(
+		context.Background(),
+		"access:"+claims.ID,
+		testUserID,
+		time.Now().Add(1*time.Minute),
+	)
+	require.NoError(t, err)
+
+	// Simulate Redis TTL expiration.
+	mr.FastForward(2 * time.Minute)
+
+	resp, err := svc.ValidateToken(
+		context.Background(),
+		&authv1.ValidateTokenRequest{
+			Token: tokenPair.Access,
+		},
+	)
+
+	assert.Nil(t, resp)
+	assert.ErrorIs(t, err, entities.ErrNotFound)
+}
+
+// ============================================================
+// REFRESH TOKEN
+// ============================================================
+
+func TestRefreshToken_Success(t *testing.T) {
+	rdb, _ := mocks.NewTestRedis(t)
+	mockIdentityRepo := &mocks.MockIdentityRepository{}
+	svc := service.NewInternalIdentityService(mockIdentityRepo, rdb)
+
+	oldTokens := issueTestTokens(t)
+
+	persistRefreshToken(t, rdb, oldTokens.Refresh)
+
+	oldClaims, err := tokens.ParseRefresh(oldTokens.Refresh)
+	require.NoError(t, err)
+
+	resp, err := svc.RefreshToken(
+		context.Background(),
+		&authv1.RefreshTokenRequest{
+			RefreshToken: oldTokens.Refresh,
+		},
+	)
+
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+
+	assert.NotEmpty(t, resp.AccessToken)
+	assert.NotEmpty(t, resp.RefreshToken)
+
+	// Verify the new access token.
+	newAccessClaims, err := tokens.ParseAccess(resp.AccessToken)
+	require.NoError(t, err)
+
+	assert.Equal(t, testUserID, newAccessClaims.Subject)
+
+	// Verify the new refresh token.
+	newRefreshClaims, err := tokens.ParseRefresh(resp.RefreshToken)
+	require.NoError(t, err)
+
+	assert.Equal(t, testUserID, newRefreshClaims.Subject)
+
+	// A refresh should issue a new JTI.
+	assert.NotEqual(t, oldClaims.ID, newRefreshClaims.ID)
+}
+
+func TestRefreshToken_InvalidToken(t *testing.T) {
+	rdb, _ := mocks.NewTestRedis(t)
+	mockIdentityRepo := &mocks.MockIdentityRepository{}
+	svc := service.NewInternalIdentityService(mockIdentityRepo, rdb)
+
+	resp, err := svc.RefreshToken(
+		context.Background(),
+		&authv1.RefreshTokenRequest{
+			RefreshToken: "invalid-refresh-token",
+		},
+	)
+
+	assert.Nil(t, resp)
+	assert.ErrorIs(t, err, entities.ErrBadData)
+}
+
+func TestRefreshToken_TokenNotFoundInRedis(t *testing.T) {
+	rdb, _ := mocks.NewTestRedis(t)
+	mockIdentityRepo := &mocks.MockIdentityRepository{}
+	svc := service.NewInternalIdentityService(mockIdentityRepo, rdb)
+
+	tokenPair := issueTestTokens(t)
+
+	// Valid JWT, but refresh JTI isn't in Redis.
+	resp, err := svc.RefreshToken(
+		context.Background(),
+		&authv1.RefreshTokenRequest{
+			RefreshToken: tokenPair.Refresh,
+		},
+	)
+
+	assert.Nil(t, resp)
+	assert.ErrorIs(t, err, entities.ErrNotFound)
+}
+
+func TestRefreshToken_ExpiredRedisEntry(t *testing.T) {
+	rdb, mr := mocks.NewTestRedis(t)
+	mockIdentityRepo := &mocks.MockIdentityRepository{}
+	svc := service.NewInternalIdentityService(mockIdentityRepo, rdb)
+
+	tokenPair := issueTestTokens(t)
+
+	claims, err := tokens.ParseRefresh(tokenPair.Refresh)
+	require.NoError(t, err)
+
+	err = rdb.SetJTI(
+		context.Background(),
+		"refresh:"+claims.ID,
+		testUserID,
+		time.Now().Add(1*time.Minute),
+	)
+	require.NoError(t, err)
+
+	// Simulate Redis TTL expiration.
+	mr.FastForward(2 * time.Minute)
+
+	resp, err := svc.RefreshToken(
+		context.Background(),
+		&authv1.RefreshTokenRequest{
+			RefreshToken: tokenPair.Refresh,
+		},
+	)
+
+	assert.Nil(t, resp)
+	assert.ErrorIs(t, err, entities.ErrNotFound)
+}

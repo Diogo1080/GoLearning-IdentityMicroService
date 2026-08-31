@@ -1,0 +1,85 @@
+services:
+  # Main Application
+  app:
+    build:
+      context: ..
+      dockerfile: ./docker/Dockerfile
+    container_name: identity-app
+    ports:
+      - "${APP_PORT}:${APP_PORT}"
+      - "${GRPC_PORT}:${GRPC_PORT}"
+    env_file:
+      - ../.env
+    environment:
+      - APP_ENV=${APP_ENV:-development}
+      - APP_PORT=${APP_PORT}
+      - GRPC_PORT=${GRPC_PORT}
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_USER=${DB_USER}
+      - DB_SECRET=${DB_SECRET}
+      - DB_NAME=${DB_NAME}
+      - REDIS_HOST=${REDIS_HOST}
+      - REDIS_PORT=${REDIS_PORT}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - todo-network
+    restart: unless-stopped
+
+  # PostgreSQL Database (user data only, tokens in Redis)
+  postgres:
+    image: postgres:15-alpine
+    container_name: identity-postgres
+    ports:
+      - "${DB_PORT}:${DB_PORT}"
+    environment:
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_SECRET}
+      - POSTGRES_DB=${DB_NAME}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/10-init-db.sql
+    command: |
+      postgres 
+        -c max_connections=200 
+        -c shared_buffers=256MB 
+        -c effective_cache_size=768MB
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - todo-network
+
+  # Redis Cache & Token Store
+  redis:
+    image: redis:7-alpine
+    container_name: identity-redis
+    command: redis-server --appendonly yes
+    ports:
+      - "${REDIS_PORT}:${REDIS_PORT}"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - todo-network
+    restart: unless-stopped
+
+networks:
+  todo-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  redis-data:

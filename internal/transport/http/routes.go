@@ -18,8 +18,10 @@ func RegisterRoutes(r *gin.Engine, identityHandler *IdentityHandler, identiyMidd
 	// User endpoints (profile management only)
 	protected.GET("/user/id/:id", identityHandler.HandleGetUserByID)
 	protected.GET("/user/name/:username", identityHandler.HandleGetUserByUsername)
-	protected.PATCH("/user/password/:id", identityHandler.HandleChangePassword)
-	protected.PUT("/user/profile", identityHandler.HandleUpdateProfile)
+	protected.GET("/user/email/:email", identityHandler.HandleGetUserByEmail)
+	protected.PATCH("/user/password/:id", identityHandler.HandleUpdatePassword)
+	protected.PUT("/user", identityHandler.HandleUpdateUser)
+	protected.DELETE("/user/id/:id", identityHandler.HandleDeleteUser)
 
 	return r
 }

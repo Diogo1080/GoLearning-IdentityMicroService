@@ -13,7 +13,7 @@ type Redis struct {
 }
 
 func NewRedis() *Redis {
-	addr := os.Getenv("REDIS_DSN")
+	addr := os.Getenv("REDIS_HOST") + ":" + os.Getenv("REDIS_PORT")
 	password := os.Getenv("REDIS_PASSWORD")
 
 	rdb := redis.NewClient(&redis.Options{Addr: addr, Password: password, DB: 0})

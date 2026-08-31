@@ -8,6 +8,7 @@ package v1
 
 import (
 	context "context"
+
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -19,12 +20,15 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	PublicIdentityService_Register_FullMethodName       = "/auth.v1.PublicIdentityService/Register"
-	PublicIdentityService_Login_FullMethodName          = "/auth.v1.PublicIdentityService/Login"
-	PublicIdentityService_UpdateUser_FullMethodName     = "/auth.v1.PublicIdentityService/UpdateUser"
-	PublicIdentityService_DeleteUser_FullMethodName     = "/auth.v1.PublicIdentityService/DeleteUser"
-	PublicIdentityService_ChangePassword_FullMethodName = "/auth.v1.PublicIdentityService/ChangePassword"
-	PublicIdentityService_Logout_FullMethodName         = "/auth.v1.PublicIdentityService/Logout"
+	PublicIdentityService_Register_FullMethodName          = "/auth.v1.PublicIdentityService/Register"
+	PublicIdentityService_Login_FullMethodName             = "/auth.v1.PublicIdentityService/Login"
+	PublicIdentityService_GetUserByID_FullMethodName       = "/auth.v1.PublicIdentityService/GetUserByID"
+	PublicIdentityService_GetUserByEmail_FullMethodName    = "/auth.v1.PublicIdentityService/GetUserByEmail"
+	PublicIdentityService_GetUserByUsername_FullMethodName = "/auth.v1.PublicIdentityService/GetUserByUsername"
+	PublicIdentityService_UpdateUser_FullMethodName        = "/auth.v1.PublicIdentityService/UpdateUser"
+	PublicIdentityService_DeleteUser_FullMethodName        = "/auth.v1.PublicIdentityService/DeleteUser"
+	PublicIdentityService_ChangePassword_FullMethodName    = "/auth.v1.PublicIdentityService/ChangePassword"
+	PublicIdentityService_Logout_FullMethodName            = "/auth.v1.PublicIdentityService/Logout"
 )
 
 // PublicIdentityServiceClient is the client API for PublicIdentityService service.
@@ -33,6 +37,9 @@ const (
 type PublicIdentityServiceClient interface {
 	Register(ctx context.Context, in *RegisterRequest, opts ...grpc.CallOption) (*RegisterResponse, error)
 	Login(ctx context.Context, in *LoginRequest, opts ...grpc.CallOption) (*LoginResponse, error)
+	GetUserByID(ctx context.Context, in *GetUserRequest, opts ...grpc.CallOption) (*GetUserResponse, error)
+	GetUserByEmail(ctx context.Context, in *GetUserRequest, opts ...grpc.CallOption) (*GetUserResponse, error)
+	GetUserByUsername(ctx context.Context, in *GetUserRequest, opts ...grpc.CallOption) (*GetUserResponse, error)
 	UpdateUser(ctx context.Context, in *UpdateUserRequest, opts ...grpc.CallOption) (*UpdateUserResponse, error)
 	DeleteUser(ctx context.Context, in *DeleteUserRequest, opts ...grpc.CallOption) (*DeleteUserResponse, error)
 	ChangePassword(ctx context.Context, in *ChangePasswordRequest, opts ...grpc.CallOption) (*ChangePasswordResponse, error)
@@ -61,6 +68,36 @@ func (c *publicIdentityServiceClient) Login(ctx context.Context, in *LoginReques
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(LoginResponse)
 	err := c.cc.Invoke(ctx, PublicIdentityService_Login_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *publicIdentityServiceClient) GetUserByID(ctx context.Context, in *GetUserRequest, opts ...grpc.CallOption) (*GetUserResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetUserResponse)
+	err := c.cc.Invoke(ctx, PublicIdentityService_GetUserByID_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *publicIdentityServiceClient) GetUserByEmail(ctx context.Context, in *GetUserRequest, opts ...grpc.CallOption) (*GetUserResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetUserResponse)
+	err := c.cc.Invoke(ctx, PublicIdentityService_GetUserByEmail_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *publicIdentityServiceClient) GetUserByUsername(ctx context.Context, in *GetUserRequest, opts ...grpc.CallOption) (*GetUserResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetUserResponse)
+	err := c.cc.Invoke(ctx, PublicIdentityService_GetUserByUsername_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -113,6 +150,9 @@ func (c *publicIdentityServiceClient) Logout(ctx context.Context, in *LogoutRequ
 type PublicIdentityServiceServer interface {
 	Register(context.Context, *RegisterRequest) (*RegisterResponse, error)
 	Login(context.Context, *LoginRequest) (*LoginResponse, error)
+	GetUserByID(context.Context, *GetUserRequest) (*GetUserResponse, error)
+	GetUserByEmail(context.Context, *GetUserRequest) (*GetUserResponse, error)
+	GetUserByUsername(context.Context, *GetUserRequest) (*GetUserResponse, error)
 	UpdateUser(context.Context, *UpdateUserRequest) (*UpdateUserResponse, error)
 	DeleteUser(context.Context, *DeleteUserRequest) (*DeleteUserResponse, error)
 	ChangePassword(context.Context, *ChangePasswordRequest) (*ChangePasswordResponse, error)
@@ -132,6 +172,15 @@ func (UnimplementedPublicIdentityServiceServer) Register(context.Context, *Regis
 }
 func (UnimplementedPublicIdentityServiceServer) Login(context.Context, *LoginRequest) (*LoginResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Login not implemented")
+}
+func (UnimplementedPublicIdentityServiceServer) GetUserByID(context.Context, *GetUserRequest) (*GetUserResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetUserByID not implemented")
+}
+func (UnimplementedPublicIdentityServiceServer) GetUserByEmail(context.Context, *GetUserRequest) (*GetUserResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetUserByEmail not implemented")
+}
+func (UnimplementedPublicIdentityServiceServer) GetUserByUsername(context.Context, *GetUserRequest) (*GetUserResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetUserByUsername not implemented")
 }
 func (UnimplementedPublicIdentityServiceServer) UpdateUser(context.Context, *UpdateUserRequest) (*UpdateUserResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method UpdateUser not implemented")
@@ -198,6 +247,60 @@ func _PublicIdentityService_Login_Handler(srv interface{}, ctx context.Context, 
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(PublicIdentityServiceServer).Login(ctx, req.(*LoginRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PublicIdentityService_GetUserByID_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetUserRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PublicIdentityServiceServer).GetUserByID(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PublicIdentityService_GetUserByID_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PublicIdentityServiceServer).GetUserByID(ctx, req.(*GetUserRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PublicIdentityService_GetUserByEmail_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetUserRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PublicIdentityServiceServer).GetUserByEmail(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PublicIdentityService_GetUserByEmail_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PublicIdentityServiceServer).GetUserByEmail(ctx, req.(*GetUserRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PublicIdentityService_GetUserByUsername_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetUserRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PublicIdentityServiceServer).GetUserByUsername(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PublicIdentityService_GetUserByUsername_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PublicIdentityServiceServer).GetUserByUsername(ctx, req.(*GetUserRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -288,6 +391,18 @@ var PublicIdentityService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Login",
 			Handler:    _PublicIdentityService_Login_Handler,
+		},
+		{
+			MethodName: "GetUserByID",
+			Handler:    _PublicIdentityService_GetUserByID_Handler,
+		},
+		{
+			MethodName: "GetUserByEmail",
+			Handler:    _PublicIdentityService_GetUserByEmail_Handler,
+		},
+		{
+			MethodName: "GetUserByUsername",
+			Handler:    _PublicIdentityService_GetUserByUsername_Handler,
 		},
 		{
 			MethodName: "UpdateUser",
