@@ -8,8 +8,8 @@ import (
 	"net/http/httptest"
 
 	"GoLearning-IdentityMicroService/internal/logger"
-	"GoLearning-IdentityMicroService/internal/tests/mocks"
 	server "GoLearning-IdentityMicroService/internal/transport/http"
+	"GoLearning-IdentityMicroService/tests/mocks"
 
 	"github.com/gin-gonic/gin"
 )
