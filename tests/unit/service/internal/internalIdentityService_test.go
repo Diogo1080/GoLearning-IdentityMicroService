@@ -10,8 +10,8 @@ import (
 	entities "GoLearning-IdentityMicroService/internal/domain"
 	"GoLearning-IdentityMicroService/internal/service"
 
-	"GoLearning-IdentityMicroService/internal/tests/mocks"
 	"GoLearning-IdentityMicroService/internal/tokens"
+	"GoLearning-IdentityMicroService/tests/mocks"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

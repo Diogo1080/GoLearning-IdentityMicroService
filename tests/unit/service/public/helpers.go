@@ -3,8 +3,8 @@ package tests
 import (
 	"GoLearning-IdentityMicroService/internal/service"
 	"GoLearning-IdentityMicroService/internal/store"
-	"GoLearning-IdentityMicroService/internal/tests/mocks"
 	"GoLearning-IdentityMicroService/internal/tokens"
+	"GoLearning-IdentityMicroService/tests/mocks"
 	"context"
 	"time"
 
