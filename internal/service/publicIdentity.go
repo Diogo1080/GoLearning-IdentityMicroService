@@ -9,8 +9,6 @@ import (
 	"GoLearning-IdentityMicroService/internal/validation"
 	"log/slog"
 
-	"fmt"
-
 	"context"
 	"strconv"
 
@@ -61,7 +59,12 @@ func (s *PublicIdentityService) Register(ctx context.Context, req *authv1.Regist
 		}, entities.ErrInternalServerError
 	}
 
-	birthdate, _ := validation.ValidateDate(req.Birthdate)
+	birthdate, err := validation.ValidateDate(req.Birthdate)
+
+	if err != nil {
+		s.logger.Error("Failed validating date", "err", err)
+		return &authv1.RegisterResponse{Success: false}, err
+	}
 
 	// Create user
 	user := entities.User{
@@ -218,8 +221,13 @@ func (s *PublicIdentityService) UpdateUser(ctx context.Context, req *authv1.Upda
 	}
 
 	tochange.Username = req.Username
-	tochange.Birthday, _ = validation.ValidateDate(req.Birthdate)
 	tochange.Email = req.Email
+	tochange.Birthday, err = validation.ValidateDate(req.Birthdate)
+
+	if err != nil {
+		s.logger.Error("Failed validating date", "err", err)
+		return &authv1.UpdateUserResponse{Success: false}, err
+	}
 
 	err = s.repo.UpdateUser(int(req.UserId), tochange)
 
@@ -282,7 +290,6 @@ func (s *PublicIdentityService) DeleteUser(ctx context.Context, req *authv1.Dele
 
 func HashPassword(password string) (string, error) {
 	bytes, err := bcrypt.GenerateFromPassword([]byte(password), 14)
-	fmt.Print(len(bytes))
 	return string(bytes), err
 }
 

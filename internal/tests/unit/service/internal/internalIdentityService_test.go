@@ -2,13 +2,14 @@ package tests
 
 import (
 	"context"
+	"os"
 	"testing"
 	"time"
 
 	authv1 "GoLearning-IdentityMicroService/api/v1"
 	entities "GoLearning-IdentityMicroService/internal/domain"
 	"GoLearning-IdentityMicroService/internal/service"
-	redisrepo "GoLearning-IdentityMicroService/internal/store"
+
 	"GoLearning-IdentityMicroService/internal/tests/mocks"
 	"GoLearning-IdentityMicroService/internal/tokens"
 
@@ -16,50 +17,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const testUserID = "42"
-
-// ------------------------------------------------------------
-// Helpers
-// ------------------------------------------------------------
-
-func issueTestTokens(t *testing.T) *tokens.Tokens {
-	t.Helper()
-
-	tokenPair, err := tokens.IssueTokens(testUserID)
-	require.NoError(t, err)
-	require.NotNil(t, tokenPair)
-
-	return tokenPair
-}
-
-func persistAccessToken(t *testing.T, rdb *redisrepo.Redis, accessToken string) {
-	t.Helper()
-
-	claims, err := tokens.ParseAccess(accessToken)
-	require.NoError(t, err)
-
-	err = rdb.SetJTI(
-		context.Background(),
-		"access:"+claims.ID,
-		testUserID,
-		time.Now().Add(15*time.Minute),
-	)
-	require.NoError(t, err)
-}
-
-func persistRefreshToken(t *testing.T, rdb *redisrepo.Redis, refreshToken string) {
-	t.Helper()
-
-	claims, err := tokens.ParseRefresh(refreshToken)
-	require.NoError(t, err)
-
-	err = rdb.SetJTI(
-		context.Background(),
-		"refresh:"+claims.ID,
-		testUserID,
-		time.Now().Add(7*24*time.Hour),
-	)
-	require.NoError(t, err)
+func TestMain(t *testing.M) {
+	os.Setenv("ACCESS_SECRET", "test-access-secret")
+	os.Setenv("REFRESH_SECRET", "test-refresh-secret")
+	os.Exit(t.Run())
 }
 
 // ============================================================
@@ -69,6 +30,7 @@ func persistRefreshToken(t *testing.T, rdb *redisrepo.Redis, refreshToken string
 func TestValidateToken_Success(t *testing.T) {
 	rdb, _ := mocks.NewTestRedis(t)
 	mockIdentityRepo := &mocks.MockIdentityRepository{}
+
 	svc := service.NewInternalIdentityService(mockIdentityRepo, rdb)
 
 	tokenPair := issueTestTokens(t)
@@ -136,7 +98,7 @@ func TestValidateToken_ExpiredRedisEntry(t *testing.T) {
 	err = rdb.SetJTI(
 		context.Background(),
 		"access:"+claims.ID,
-		testUserID,
+		testUserIdString,
 		time.Now().Add(1*time.Minute),
 	)
 	require.NoError(t, err)
@@ -188,13 +150,13 @@ func TestRefreshToken_Success(t *testing.T) {
 	newAccessClaims, err := tokens.ParseAccess(resp.AccessToken)
 	require.NoError(t, err)
 
-	assert.Equal(t, testUserID, newAccessClaims.Subject)
+	assert.Equal(t, testUserIdString, newAccessClaims.Subject)
 
 	// Verify the new refresh token.
 	newRefreshClaims, err := tokens.ParseRefresh(resp.RefreshToken)
 	require.NoError(t, err)
 
-	assert.Equal(t, testUserID, newRefreshClaims.Subject)
+	assert.Equal(t, testUserIdString, newRefreshClaims.Subject)
 
 	// A refresh should issue a new JTI.
 	assert.NotEqual(t, oldClaims.ID, newRefreshClaims.ID)
@@ -248,7 +210,7 @@ func TestRefreshToken_ExpiredRedisEntry(t *testing.T) {
 	err = rdb.SetJTI(
 		context.Background(),
 		"refresh:"+claims.ID,
-		testUserID,
+		testUserIdString,
 		time.Now().Add(1*time.Minute),
 	)
 	require.NoError(t, err)
