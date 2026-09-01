@@ -2,7 +2,7 @@ package tests
 
 import (
 	authv1 "GoLearning-IdentityMicroService/api/v1"
-	"GoLearning-IdentityMicroService/internal/tests/mocks"
+	"GoLearning-IdentityMicroService/tests/mocks"
 	"context"
 	"errors"
 	"net/http"
