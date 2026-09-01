@@ -1,6 +1,8 @@
 package http
 
 import (
+	"net/http"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -10,7 +12,7 @@ func RegisterRoutes(r *gin.Engine, identityHandler *IdentityHandler, identiyMidd
 	public.POST("/register", identityHandler.HandleRegister)
 	public.POST("/login", identityHandler.HandleLogin)
 	public.POST("/logout", identityHandler.HandleLogout)
-
+	public.GET("/health", Health)
 	// Protected routes (require valid JWT token via auth microservice)
 	protected := r.Group("/api")
 	protected.Use(identiyMiddleware)
@@ -24,4 +26,10 @@ func RegisterRoutes(r *gin.Engine, identityHandler *IdentityHandler, identiyMidd
 	protected.DELETE("/user/id/:id", identityHandler.HandleDeleteUser)
 
 	return r
+}
+
+func Health(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"status": "ok",
+	})
 }

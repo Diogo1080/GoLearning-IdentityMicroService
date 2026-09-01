@@ -73,7 +73,7 @@ func (r *SQLiteIdentityRepository) CreateUser(user entities.User) (entities.User
 	//TODO: look into returning postgress
 	err := r.DB.QueryRow("INSERT INTO users (username, password_hash, Email, Birthdate) VALUES ($1, $2, $3, $4)  RETURNING id",
 		user.Username, user.Password, user.Email, user.Birthday,
-	).Scan(user.ID)
+	).Scan(&user.ID)
 
 	if err != nil {
 		r.logger.Error("failed to insert user", "user", user.ToUserDTO(), "error", err)
