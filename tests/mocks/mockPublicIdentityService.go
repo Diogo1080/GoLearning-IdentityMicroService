@@ -2,11 +2,12 @@
 package mocks
 
 import (
-	authv1 "GoLearning-IdentityMicroService/api/v1"
-	"GoLearning-IdentityMicroService/internal/store"
-	"GoLearning-IdentityMicroService/internal/tokens"
 	"context"
 	"log/slog"
+
+	authv1 "github.com/Diogo1080/GoLearning-IdentityMicroService/api/v1"
+	"github.com/Diogo1080/GoLearning-IdentityMicroService/internal/store"
+	"github.com/Diogo1080/GoLearning-IdentityMicroService/internal/tokens"
 )
 
 // MockPublicIdentityService implements PublicIdentityService interface for testing

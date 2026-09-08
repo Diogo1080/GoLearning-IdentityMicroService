@@ -1,10 +1,11 @@
 package store
 
 import (
-	entities "GoLearning-IdentityMicroService/internal/domain"
-	"GoLearning-IdentityMicroService/internal/logger"
 	"database/sql"
 	"log/slog"
+
+	entities "github.com/Diogo1080/GoLearning-IdentityMicroService/internal/domain"
+	"github.com/Diogo1080/GoLearning-IdentityMicroService/internal/logger"
 )
 
 type IdentityRepository interface {

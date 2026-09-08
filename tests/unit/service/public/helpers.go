@@ -1,10 +1,10 @@
 package tests
 
 import (
-	"GoLearning-IdentityMicroService/internal/service"
-	"GoLearning-IdentityMicroService/tests/mocks"
+	"github.com/Diogo1080/GoLearning-IdentityMicroService/internal/service"
+	"github.com/Diogo1080/GoLearning-IdentityMicroService/tests/mocks"
 
-	"GoLearning-IdentityMicroService/internal/domain"
+	"github.com/Diogo1080/GoLearning-IdentityMicroService/internal/domain"
 
 	"testing"
 

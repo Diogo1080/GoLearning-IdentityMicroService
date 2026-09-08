@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	store "GoLearning-IdentityMicroService/internal/store"
+	store "github.com/Diogo1080/GoLearning-IdentityMicroService/internal/store"
 
 	miniredis "github.com/alicebob/miniredis/v2"
 	goredis "github.com/redis/go-redis/v9"

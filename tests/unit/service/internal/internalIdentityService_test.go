@@ -6,11 +6,11 @@ import (
 	"os"
 	"testing"
 
-	authv1 "GoLearning-IdentityMicroService/api/v1"
-	entities "GoLearning-IdentityMicroService/internal/domain"
-	"GoLearning-IdentityMicroService/internal/service"
-	"GoLearning-IdentityMicroService/internal/tokens"
-	"GoLearning-IdentityMicroService/tests/mocks"
+	authv1 "github.com/Diogo1080/GoLearning-IdentityMicroService/api/v1"
+	entities "github.com/Diogo1080/GoLearning-IdentityMicroService/internal/domain"
+	"github.com/Diogo1080/GoLearning-IdentityMicroService/internal/service"
+	"github.com/Diogo1080/GoLearning-IdentityMicroService/internal/tokens"
+	"github.com/Diogo1080/GoLearning-IdentityMicroService/tests/mocks"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/assert"

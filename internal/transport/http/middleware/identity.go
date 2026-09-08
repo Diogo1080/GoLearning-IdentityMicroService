@@ -6,10 +6,10 @@ import (
 	"net/http"
 	"strings"
 
-	v1 "GoLearning-IdentityMicroService/api/v1"
-	entities "GoLearning-IdentityMicroService/internal/domain"
-	"GoLearning-IdentityMicroService/internal/logger"
-	service "GoLearning-IdentityMicroService/internal/service"
+	v1 "github.com/Diogo1080/GoLearning-IdentityMicroService/api/v1"
+	entities "github.com/Diogo1080/GoLearning-IdentityMicroService/internal/domain"
+	"github.com/Diogo1080/GoLearning-IdentityMicroService/internal/logger"
+	service "github.com/Diogo1080/GoLearning-IdentityMicroService/internal/service"
 
 	"github.com/gin-gonic/gin"
 )

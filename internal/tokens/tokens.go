@@ -1,14 +1,15 @@
 package tokens
 
 import (
-	entities "GoLearning-IdentityMicroService/internal/domain"
-	"GoLearning-IdentityMicroService/internal/store"
 	"context"
 	"errors"
 	"fmt"
 	"net/http"
 	"os"
 	"time"
+
+	entities "github.com/Diogo1080/GoLearning-IdentityMicroService/internal/domain"
+	"github.com/Diogo1080/GoLearning-IdentityMicroService/internal/store"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"

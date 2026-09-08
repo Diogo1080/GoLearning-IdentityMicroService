@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	entities "GoLearning-IdentityMicroService/internal/domain"
+	entities "github.com/Diogo1080/GoLearning-IdentityMicroService/internal/domain"
 )
 
 func ValidateId(id string) bool {

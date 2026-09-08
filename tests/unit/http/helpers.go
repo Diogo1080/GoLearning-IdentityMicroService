@@ -7,9 +7,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"GoLearning-IdentityMicroService/internal/logger"
-	server "GoLearning-IdentityMicroService/internal/transport/http"
-	"GoLearning-IdentityMicroService/tests/mocks"
+	"github.com/Diogo1080/GoLearning-IdentityMicroService/internal/logger"
+	server "github.com/Diogo1080/GoLearning-IdentityMicroService/internal/transport/http"
+	"github.com/Diogo1080/GoLearning-IdentityMicroService/tests/mocks"
 
 	"github.com/gin-gonic/gin"
 )

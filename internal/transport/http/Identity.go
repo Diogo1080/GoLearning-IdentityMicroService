@@ -1,14 +1,15 @@
 package http
 
 import (
-	authv1 "GoLearning-IdentityMicroService/api/v1"
-	entities "GoLearning-IdentityMicroService/internal/domain"
-	"GoLearning-IdentityMicroService/internal/logger"
-	"GoLearning-IdentityMicroService/internal/validation"
 	"errors"
 	"fmt"
 	"log/slog"
 	"strconv"
+
+	authv1 "github.com/Diogo1080/GoLearning-IdentityMicroService/api/v1"
+	entities "github.com/Diogo1080/GoLearning-IdentityMicroService/internal/domain"
+	"github.com/Diogo1080/GoLearning-IdentityMicroService/internal/logger"
+	"github.com/Diogo1080/GoLearning-IdentityMicroService/internal/validation"
 
 	"context"
 	"net/http"

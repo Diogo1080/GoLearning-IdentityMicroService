@@ -1,9 +1,6 @@
 package tests
 
 import (
-	authv1 "GoLearning-IdentityMicroService/api/v1"
-	entities "GoLearning-IdentityMicroService/internal/domain"
-	"GoLearning-IdentityMicroService/tests/mocks"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -11,6 +8,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	authv1 "github.com/Diogo1080/GoLearning-IdentityMicroService/api/v1"
+	entities "github.com/Diogo1080/GoLearning-IdentityMicroService/internal/domain"
+	"github.com/Diogo1080/GoLearning-IdentityMicroService/tests/mocks"
 
 	"github.com/go-jose/go-jose/v4/testutils/require"
 	"github.com/stretchr/testify/assert"

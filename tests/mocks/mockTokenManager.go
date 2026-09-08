@@ -1,8 +1,9 @@
 package mocks
 
 import (
-	"GoLearning-IdentityMicroService/internal/tokens"
 	"context"
+
+	"github.com/Diogo1080/GoLearning-IdentityMicroService/internal/tokens"
 
 	"github.com/gin-gonic/gin"
 )

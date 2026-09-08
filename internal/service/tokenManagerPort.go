@@ -1,8 +1,9 @@
 package service
 
 import (
-	tokens "GoLearning-IdentityMicroService/internal/tokens"
 	"context"
+
+	tokens "github.com/Diogo1080/GoLearning-IdentityMicroService/internal/tokens"
 )
 
 type TokenManagerPort interface {

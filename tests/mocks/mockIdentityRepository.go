@@ -1,7 +1,7 @@
 package mocks
 
 import (
-	"GoLearning-IdentityMicroService/internal/domain"
+	"github.com/Diogo1080/GoLearning-IdentityMicroService/internal/domain"
 
 	"github.com/stretchr/testify/mock"
 )
