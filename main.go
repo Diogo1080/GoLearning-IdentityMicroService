@@ -1,18 +1,19 @@
 package main
 
 import (
-	authv1 "GoLearning-IdentityMicroService/api/v1"
-	"GoLearning-IdentityMicroService/internal/logger"
-	"GoLearning-IdentityMicroService/internal/service"
-	"GoLearning-IdentityMicroService/internal/store"
-	tokens "GoLearning-IdentityMicroService/internal/tokens"
-	server "GoLearning-IdentityMicroService/internal/transport/http"
-	middleware "GoLearning-IdentityMicroService/internal/transport/http/middleware"
 	"fmt"
 	"log"
 	"net"
 	"net/http"
 	"os"
+
+	authv1 "github.com/Diogo1080/GoLearning-IdentityMicroService/api/v1"
+	"github.com/Diogo1080/GoLearning-IdentityMicroService/internal/logger"
+	"github.com/Diogo1080/GoLearning-IdentityMicroService/internal/service"
+	"github.com/Diogo1080/GoLearning-IdentityMicroService/internal/store"
+	tokens "github.com/Diogo1080/GoLearning-IdentityMicroService/internal/tokens"
+	server "github.com/Diogo1080/GoLearning-IdentityMicroService/internal/transport/http"
+	middleware "github.com/Diogo1080/GoLearning-IdentityMicroService/internal/transport/http/middleware"
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
@@ -70,17 +71,17 @@ func main() {
 	grpcAddress := fmt.Sprintf(":%s", os.Getenv("GRPC_PORT"))
 	httpAddress := fmt.Sprintf(":%s", os.Getenv("APP_PORT"))
 
-	log.Info("Auth gRPC server listening on %s", grpcAddress)
-	log.Info("Auth HTTP server listening on %s", httpAddress)
+	log.Info("Auth gRPC server listening on", "port", grpcAddress)
+	log.Info("Auth HTTP server listening on", "port", httpAddress)
 
 	go func() {
 		if err := grpcServer.Serve(lis); err != nil {
-			log.Error("Failed to serve gRPC: %v", err)
+			log.Error("Failed to serve gRPC:", "err", err)
 		}
 	}()
 
 	if err := http.ListenAndServe(httpAddress, r); err != nil {
-		log.Error("Failed to serve HTTP: %v", err)
+		log.Error("Failed to serve HTTP: ", "err", err)
 	}
 
 	//Kubernets will require signal handling

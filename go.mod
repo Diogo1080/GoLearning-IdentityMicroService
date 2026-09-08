@@ -1,4 +1,4 @@
-module GoLearning-IdentityMicroService
+module github.com/Diogo1080/GoLearning-IdentityMicroService
 
 go 1.26.2
 
