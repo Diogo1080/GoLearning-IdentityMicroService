@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package auth.v1;
 
-option go_package = "GoLearning-IdentityMicroService/api/v1";
+option go_package = "github.com/Diogo1080/GoLearning-IdentityMicroService/api/v1";
 
 service PublicIdentityService {
     rpc Register(RegisterRequest) returns (RegisterResponse);

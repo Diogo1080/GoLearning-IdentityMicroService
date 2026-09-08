@@ -1033,7 +1033,7 @@ const file_api_v1_identity_proto_rawDesc = "" +
 	"\x06Logout\x12\x16.auth.v1.LogoutRequest\x1a\x17.auth.v1.LogoutResponse\x12?\n" +
 	"\tLogoutAll\x12\x19.auth.v1.LogoutAllRequest\x1a\x17.auth.v1.LogoutResponse2i\n" +
 	"\x17InternalIdentityService\x12N\n" +
-	"\rValidateToken\x12\x1d.auth.v1.ValidateTokenRequest\x1a\x1e.auth.v1.ValidateTokenResponseB(Z&GoLearning-IdentityMicroService/api/v1b\x06proto3"
+	"\rValidateToken\x12\x1d.auth.v1.ValidateTokenRequest\x1a\x1e.auth.v1.ValidateTokenResponseB=Z;github.com/Diogo1080/GoLearning-IdentityMicroService/api/v1b\x06proto3"
 
 var (
 	file_api_v1_identity_proto_rawDescOnce sync.Once
