@@ -2,17 +2,12 @@ package tests
 
 import (
 	"GoLearning-IdentityMicroService/internal/service"
-	"GoLearning-IdentityMicroService/internal/store"
-	"GoLearning-IdentityMicroService/internal/tokens"
 	"GoLearning-IdentityMicroService/tests/mocks"
-	"context"
-	"time"
 
 	"GoLearning-IdentityMicroService/internal/domain"
 
 	"testing"
 
-	"github.com/go-openapi/testify/v2/require"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -25,19 +20,15 @@ const (
 	testJWTSecret    = "test-secret"
 )
 
-func newPublicIdentityService(t *testing.T) (
-	*mocks.MockIdentityRepository,
-	*store.Redis,
-	*service.PublicIdentityService,
-) {
+func newPublicIdentityService(t *testing.T) (identityRepo *mocks.MockIdentityRepository, TokenManager *mocks.MockTokenManager, publicIdentityService *service.PublicIdentityService) {
 	t.Helper()
 
-	rdb, _ := mocks.NewTestRedis(t)
 	repo := &mocks.MockIdentityRepository{}
+	TokenManager = &mocks.MockTokenManager{}
 
-	svc := service.NewPublicIdentityService(repo, rdb)
+	svc := service.NewPublicIdentityService(repo, TokenManager)
 
-	return repo, rdb, svc
+	return repo, TokenManager, svc
 }
 
 func testUser() domain.User {
@@ -52,46 +43,6 @@ func testUser() domain.User {
 		Email:    testEmail,
 		Password: hashedPassword,
 	}
-}
-
-func issueTestTokens(t *testing.T) *tokens.Tokens {
-	t.Helper()
-
-	tokenPair, err := tokens.IssueTokens(testUserIdString)
-	require.NoError(t, err)
-	require.NotNil(t, tokenPair)
-
-	return tokenPair
-}
-
-func persistAccessToken(t *testing.T, rdb *store.Redis, accessToken string) {
-	t.Helper()
-
-	claims, err := tokens.ParseAccess(accessToken)
-	require.NoError(t, err)
-
-	err = rdb.SetJTI(
-		context.Background(),
-		"access:"+claims.ID,
-		testUserIdString,
-		time.Now().Add(15*time.Minute),
-	)
-	require.NoError(t, err)
-}
-
-func persistRefreshToken(t *testing.T, rdb *store.Redis, refreshToken string) {
-	t.Helper()
-
-	claims, err := tokens.ParseRefresh(refreshToken)
-	require.NoError(t, err)
-
-	err = rdb.SetJTI(
-		context.Background(),
-		"refresh:"+claims.ID,
-		testUserIdString,
-		time.Now().Add(7*24*time.Hour),
-	)
-	require.NoError(t, err)
 }
 
 func HashPassword(password string) (string, error) {

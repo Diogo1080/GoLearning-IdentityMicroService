@@ -10,8 +10,13 @@ func RegisterRoutes(r *gin.Engine, identityHandler *IdentityHandler, identiyMidd
 	// Public routes (no auth required)
 	public := r.Group("/api")
 	public.POST("/register", identityHandler.HandleRegister)
+
 	public.POST("/login", identityHandler.HandleLogin)
+	public.POST("/refresh", identityHandler.HandleRefreshLogin)
+
 	public.POST("/logout", identityHandler.HandleLogout)
+	public.POST("/logout/all", identityHandler.HandleLogoutAll)
+
 	public.GET("/health", Health)
 	// Protected routes (require valid JWT token via auth microservice)
 	protected := r.Group("/api")

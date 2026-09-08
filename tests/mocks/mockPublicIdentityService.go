@@ -4,6 +4,7 @@ package mocks
 import (
 	authv1 "GoLearning-IdentityMicroService/api/v1"
 	"GoLearning-IdentityMicroService/internal/store"
+	"GoLearning-IdentityMicroService/internal/tokens"
 	"context"
 	"log/slog"
 )
@@ -12,7 +13,6 @@ import (
 type MockPublicIdentityService struct {
 	authv1.UnimplementedPublicIdentityServiceServer
 	repo   store.IdentityRepository
-	rds    *store.Redis
 	logger *slog.Logger
 
 	RegisterFunc          func(ctx context.Context, req *authv1.RegisterRequest) (*authv1.RegisterResponse, error)
@@ -24,6 +24,14 @@ type MockPublicIdentityService struct {
 	ChangePasswordFunc    func(ctx context.Context, req *authv1.ChangePasswordRequest) (*authv1.ChangePasswordResponse, error)
 	DeleteUserFunc        func(ctx context.Context, req *authv1.DeleteUserRequest) (*authv1.DeleteUserResponse, error)
 	LogoutFunc            func(ctx context.Context, req *authv1.LogoutRequest) (*authv1.LogoutResponse, error)
+	LogoutAllFunc         func(ctx context.Context, req *authv1.LogoutAllRequest) (*authv1.LogoutResponse, error)
+}
+
+func NewMockPublicIdentityService(repo store.IdentityRepository, tm *tokens.TokenManager) *MockPublicIdentityService {
+	return &MockPublicIdentityService{
+		repo:   repo,
+		logger: slog.Default().WithGroup("MockPublicIdentityService"),
+	}
 }
 
 func (m *MockPublicIdentityService) Register(ctx context.Context, req *authv1.RegisterRequest) (*authv1.RegisterResponse, error) {
@@ -87,4 +95,11 @@ func (m *MockPublicIdentityService) Logout(ctx context.Context, req *authv1.Logo
 		panic("LogoutFunc not implemented")
 	}
 	return m.LogoutFunc(ctx, req)
+}
+
+func (m *MockPublicIdentityService) LogoutAll(ctx context.Context, req *authv1.LogoutAllRequest) (*authv1.LogoutResponse, error) {
+	if m.LogoutAllFunc == nil {
+		panic("LogoutAllFunc not implemented")
+	}
+	return m.LogoutAllFunc(ctx, req)
 }

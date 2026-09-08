@@ -5,6 +5,7 @@ import (
 	"GoLearning-IdentityMicroService/internal/logger"
 	"GoLearning-IdentityMicroService/internal/service"
 	"GoLearning-IdentityMicroService/internal/store"
+	tokens "GoLearning-IdentityMicroService/internal/tokens"
 	server "GoLearning-IdentityMicroService/internal/transport/http"
 	middleware "GoLearning-IdentityMicroService/internal/transport/http/middleware"
 	"fmt"
@@ -46,7 +47,9 @@ func main() {
 
 	reflection.Register(grpcServer)
 
-	iIdentityService := service.NewInternalIdentityService(identityRepo, rds)
+	tokenManager := tokens.NewTokenManager(rds)
+
+	iIdentityService := service.NewInternalIdentityService(identityRepo, tokenManager)
 
 	authv1.RegisterInternalIdentityServiceServer(grpcServer, iIdentityService)
 
@@ -56,10 +59,10 @@ func main() {
 	identityMiddleware := middleware.NewidentityMiddlewareBuilder(iIdentityService).Build()
 
 	// Initialize services (web service layer - no auth logic)
-	pIdentiyService := service.NewPublicIdentityService(identityRepo, rds)
+	pIdentiyService := service.NewPublicIdentityService(identityRepo, tokenManager)
 
 	//Build the handler
-	identityHandler := server.NewIdentityHandler(pIdentiyService)
+	identityHandler := server.NewIdentityHandler(pIdentiyService, tokenManager)
 
 	//Register routes with auth middleware
 	server.RegisterRoutes(r, identityHandler, identityMiddleware)

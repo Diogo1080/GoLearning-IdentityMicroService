@@ -22,7 +22,8 @@ import (
 
 func TestHandleRegister_Success(t *testing.T) {
 	mockSvc := &mocks.MockPublicIdentityService{}
-	router := setupRouter(mockSvc)
+	tokenManager := &mocks.MockTokenManager{}
+	router := setupRouter(t, mockSvc, tokenManager)
 
 	called := false
 
@@ -50,7 +51,7 @@ func TestHandleRegister_Success(t *testing.T) {
 		"birthdate": "1990-01-01",
 	}
 
-	req := jsonRequest(http.MethodPost, "/register", body)
+	req := jsonRequest(t, http.MethodPost, "/register", body)
 	w := httptest.NewRecorder()
 
 	router.ServeHTTP(w, req)
@@ -67,7 +68,8 @@ func TestHandleRegister_Success(t *testing.T) {
 
 func TestHandleRegister_InvalidJSON(t *testing.T) {
 	mockSvc := &mocks.MockPublicIdentityService{}
-	router := setupRouter(mockSvc)
+	tokenManager := &mocks.MockTokenManager{}
+	router := setupRouter(t, mockSvc, tokenManager)
 
 	req := httptest.NewRequest(
 		http.MethodPost,
@@ -85,7 +87,8 @@ func TestHandleRegister_InvalidJSON(t *testing.T) {
 
 func TestHandleRegister_MissingUsername(t *testing.T) {
 	mockSvc := &mocks.MockPublicIdentityService{}
-	router := setupRouter(mockSvc)
+	tokenManager := &mocks.MockTokenManager{}
+	router := setupRouter(t, mockSvc, tokenManager)
 
 	body := map[string]string{
 		"password":  "Password123!",
@@ -93,7 +96,7 @@ func TestHandleRegister_MissingUsername(t *testing.T) {
 		"birthdate": "1990-01-01",
 	}
 
-	req := jsonRequest(http.MethodPost, "/register", body)
+	req := jsonRequest(t, http.MethodPost, "/register", body)
 	w := httptest.NewRecorder()
 
 	router.ServeHTTP(w, req)
@@ -103,7 +106,8 @@ func TestHandleRegister_MissingUsername(t *testing.T) {
 
 func TestHandleRegister_InvalidUsername(t *testing.T) {
 	mockSvc := &mocks.MockPublicIdentityService{}
-	router := setupRouter(mockSvc)
+	tokenManager := &mocks.MockTokenManager{}
+	router := setupRouter(t, mockSvc, tokenManager)
 
 	body := map[string]string{
 		"username":  "ab",
@@ -112,7 +116,7 @@ func TestHandleRegister_InvalidUsername(t *testing.T) {
 		"birthdate": "1990-01-01",
 	}
 
-	req := jsonRequest(http.MethodPost, "/register", body)
+	req := jsonRequest(t, http.MethodPost, "/register", body)
 	w := httptest.NewRecorder()
 
 	router.ServeHTTP(w, req)
@@ -122,7 +126,8 @@ func TestHandleRegister_InvalidUsername(t *testing.T) {
 
 func TestHandleRegister_InvalidEmail(t *testing.T) {
 	mockSvc := &mocks.MockPublicIdentityService{}
-	router := setupRouter(mockSvc)
+	tokenManager := &mocks.MockTokenManager{}
+	router := setupRouter(t, mockSvc, tokenManager)
 
 	body := map[string]string{
 		"username":  "john",
@@ -131,7 +136,7 @@ func TestHandleRegister_InvalidEmail(t *testing.T) {
 		"birthdate": "1990-01-01",
 	}
 
-	req := jsonRequest(http.MethodPost, "/register", body)
+	req := jsonRequest(t, http.MethodPost, "/register", body)
 	w := httptest.NewRecorder()
 
 	router.ServeHTTP(w, req)
@@ -141,7 +146,8 @@ func TestHandleRegister_InvalidEmail(t *testing.T) {
 
 func TestHandleRegister_InvalidPassword(t *testing.T) {
 	mockSvc := &mocks.MockPublicIdentityService{}
-	router := setupRouter(mockSvc)
+	tokenManager := &mocks.MockTokenManager{}
+	router := setupRouter(t, mockSvc, tokenManager)
 
 	body := map[string]string{
 		"username":  "john",
@@ -150,7 +156,7 @@ func TestHandleRegister_InvalidPassword(t *testing.T) {
 		"birthdate": "1990-01-01",
 	}
 
-	req := jsonRequest(http.MethodPost, "/register", body)
+	req := jsonRequest(t, http.MethodPost, "/register", body)
 	w := httptest.NewRecorder()
 
 	router.ServeHTTP(w, req)
@@ -160,7 +166,8 @@ func TestHandleRegister_InvalidPassword(t *testing.T) {
 
 func TestHandleRegister_InvalidBirthdate(t *testing.T) {
 	mockSvc := &mocks.MockPublicIdentityService{}
-	router := setupRouter(mockSvc)
+	tokenManager := &mocks.MockTokenManager{}
+	router := setupRouter(t, mockSvc, tokenManager)
 
 	body := map[string]string{
 		"username":  "john",
@@ -169,7 +176,7 @@ func TestHandleRegister_InvalidBirthdate(t *testing.T) {
 		"birthdate": "not-a-date",
 	}
 
-	req := jsonRequest(http.MethodPost, "/register", body)
+	req := jsonRequest(t, http.MethodPost, "/register", body)
 	w := httptest.NewRecorder()
 
 	router.ServeHTTP(w, req)
@@ -179,7 +186,8 @@ func TestHandleRegister_InvalidBirthdate(t *testing.T) {
 
 func TestHandleRegister_AlreadyExists(t *testing.T) {
 	mockSvc := &mocks.MockPublicIdentityService{}
-	router := setupRouter(mockSvc)
+	tokenManager := &mocks.MockTokenManager{}
+	router := setupRouter(t, mockSvc, tokenManager)
 
 	mockSvc.RegisterFunc = func(
 		ctx context.Context,
@@ -195,7 +203,7 @@ func TestHandleRegister_AlreadyExists(t *testing.T) {
 		"birthdate": "1990-01-01",
 	}
 
-	req := jsonRequest(http.MethodPost, "/register", body)
+	req := jsonRequest(t, http.MethodPost, "/register", body)
 	w := httptest.NewRecorder()
 
 	router.ServeHTTP(w, req)
@@ -205,7 +213,8 @@ func TestHandleRegister_AlreadyExists(t *testing.T) {
 
 func TestHandleRegister_ServiceError(t *testing.T) {
 	mockSvc := &mocks.MockPublicIdentityService{}
-	router := setupRouter(mockSvc)
+	tokenManager := &mocks.MockTokenManager{}
+	router := setupRouter(t, mockSvc, tokenManager)
 
 	mockSvc.RegisterFunc = func(
 		ctx context.Context,
@@ -221,7 +230,7 @@ func TestHandleRegister_ServiceError(t *testing.T) {
 		"birthdate": "1990-01-01",
 	}
 
-	req := jsonRequest(http.MethodPost, "/register", body)
+	req := jsonRequest(t, http.MethodPost, "/register", body)
 	w := httptest.NewRecorder()
 
 	router.ServeHTTP(w, req)

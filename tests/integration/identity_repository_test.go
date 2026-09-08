@@ -21,74 +21,6 @@ func TestMain(m *testing.M) {
 }
 
 // ============================================================
-// HELPERS
-// ============================================================
-
-func createTestUser(t *testing.T) (TestUser, AuthResponse) {
-	t.Helper()
-
-	suffix := fmt.Sprintf("%d", time.Now().UnixNano())
-
-	user := TestUser{
-		Username:  "db_user_" + suffix,
-		Email:     "db" + suffix + "@test.com",
-		Password:  "SecurePass123!",
-		Birthdate: "1990-05-15",
-	}
-
-	registeredUser := registerUser(t, user)
-
-	auth := loginUser(
-		t,
-		registeredUser.Username,
-		registeredUser.Password,
-	)
-
-	if auth.UserID == 0 {
-		t.Fatal("Expected non-zero user ID")
-	}
-
-	user.UserID = auth.UserID
-
-	return user, auth
-}
-
-type UserResponse struct {
-	ID        int32  `json:"id"`
-	Username  string `json:"username"`
-	Email     string `json:"email"`
-	Birthdate string `json:"birthdate"`
-}
-
-func getUserByID(t *testing.T, userID int, token string) UserResponse {
-	t.Helper()
-
-	status, body := doRequest(
-		t,
-		http.MethodGet,
-		fmt.Sprintf("/user/id/%d", userID),
-		token,
-		nil,
-	)
-
-	if status != http.StatusOK && status != http.StatusFound {
-		t.Fatalf(
-			"Expected 200/302, got %d: %s",
-			status,
-			string(body),
-		)
-	}
-
-	var user UserResponse
-
-	if err := json.Unmarshal(body, &user); err != nil {
-		t.Fatalf("Failed to decode user response: %v", err)
-	}
-
-	return user
-}
-
-// ============================================================
 // HEALTH
 // ============================================================
 
@@ -103,6 +35,507 @@ func TestIntegration_Health(t *testing.T) {
 		t.Fatalf(
 			"Expected 200, got %d",
 			resp.StatusCode,
+		)
+	}
+}
+
+// ============================================================
+// LOGIN
+// ============================================================
+
+func TestIntegration_Login_WithUsername(t *testing.T) {
+	user, _ := createTestUser(t)
+
+	auth := loginUser(
+		t,
+		user.Username,
+		user.Password,
+	)
+
+	if auth.AccessToken == "" {
+		t.Fatal("Expected access token, got empty string")
+	}
+
+	if auth.RefreshToken == "" {
+		t.Fatal("Expected refresh token, got empty string")
+	}
+
+	if int(auth.UserID) != int(user.UserID) {
+		t.Fatalf(
+			"Expected user ID %d, got %d",
+			int(user.UserID),
+			int(auth.UserID),
+		)
+	}
+
+	if auth.Message != "login successful" {
+		t.Fatalf(
+			"Expected login successful message, got %q",
+			auth.Message,
+		)
+	}
+}
+
+func TestIntegration_Login_WithEmail(t *testing.T) {
+	user, _ := createTestUser(t)
+
+	auth := loginUser(
+		t,
+		user.Email,
+		user.Password,
+	)
+
+	if auth.AccessToken == "" {
+		t.Fatal("Expected access token, got empty string")
+	}
+
+	if auth.RefreshToken == "" {
+		t.Fatal("Expected refresh token, got empty string")
+	}
+
+	if int(auth.UserID) != int(user.UserID) {
+		t.Fatalf(
+			"Expected user ID %d, got %d",
+			int(user.UserID),
+			int(auth.UserID),
+		)
+	}
+}
+
+func TestIntegration_Login_InvalidPassword(t *testing.T) {
+	user, _ := createTestUser(t)
+
+	status, body := doRequest(
+		t,
+		http.MethodPost,
+		"/login",
+		"",
+		map[string]string{
+			"usernameoremail": user.Username,
+			"password":        "WrongPassword123!",
+		},
+	)
+
+	if status != http.StatusUnauthorized {
+		t.Fatalf(
+			"Expected 401, got %d: %s",
+			status,
+			string(body),
+		)
+	}
+}
+
+func TestIntegration_Login_NonexistentUser(t *testing.T) {
+	status, body := doRequest(
+		t,
+		http.MethodPost,
+		"/login",
+		"",
+		map[string]string{
+			"usernameoremail": "does_not_exist_123456",
+			"password":        "SecurePass123!",
+		},
+	)
+
+	if status != http.StatusNotFound {
+		t.Fatalf(
+			"Expected 404, got %d: %s",
+			status,
+			string(body),
+		)
+	}
+}
+
+func TestIntegration_Login_InvalidRequest(t *testing.T) {
+	status, body := doRequest(
+		t,
+		http.MethodPost,
+		"/login",
+		"",
+		map[string]string{
+			"usernameoremail": "",
+			"password":        "",
+		},
+	)
+
+	if status != http.StatusBadRequest {
+		t.Fatalf(
+			"Expected 400, got %d: %s",
+			status,
+			string(body),
+		)
+	}
+}
+
+// ============================================================
+// REFRESH LOGIN
+// ============================================================
+
+func TestIntegration_RefreshLogin(t *testing.T) {
+	user, auth := createTestUser(t)
+
+	status, body := doRequestWithRefresh(
+		t,
+		http.MethodPost,
+		"/refresh",
+		auth.RefreshToken,
+		map[string]string{},
+	)
+
+	if status != http.StatusOK {
+		t.Fatalf(
+			"Expected 200, got %d: %s",
+			status,
+			string(body),
+		)
+	}
+
+	var refreshed AuthResponse
+
+	if err := json.Unmarshal(body, &refreshed); err != nil {
+		t.Fatalf(
+			"Failed to decode refresh response: %v",
+			err,
+		)
+	}
+
+	if refreshed.AccessToken == "" {
+		t.Fatal("Expected new access token")
+	}
+
+	if refreshed.RefreshToken == "" {
+		t.Fatal("Expected new refresh token")
+	}
+
+	if int(refreshed.UserID) != int(user.UserID) {
+		t.Fatalf(
+			"Expected user ID %d, got %d",
+			int(user.UserID),
+			int(refreshed.UserID),
+		)
+	}
+
+	if refreshed.AccessToken == auth.AccessToken {
+		t.Fatal("Expected refreshed access token to be different")
+	}
+
+	if refreshed.RefreshToken == auth.RefreshToken {
+		t.Fatal("Expected refreshed refresh token to be different")
+	}
+}
+
+func TestIntegration_RefreshLogin_RotatesRefreshToken(t *testing.T) {
+	_, auth := createTestUser(t)
+
+	status, body := doRequestWithRefresh(
+		t,
+		http.MethodPost,
+		"/refresh",
+		auth.RefreshToken,
+		map[string]string{},
+	)
+
+	if status != http.StatusOK {
+		t.Fatalf(
+			"Expected 200, got %d: %s",
+			status,
+			string(body),
+		)
+	}
+
+	var refreshed AuthResponse
+
+	if err := json.Unmarshal(body, &refreshed); err != nil {
+		t.Fatalf(
+			"Failed to decode response: %v",
+			err,
+		)
+	}
+
+	// The new refresh token should not be the old one.
+	if refreshed.RefreshToken == auth.RefreshToken {
+		t.Fatal("Refresh token was not rotated")
+	}
+
+	// If your implementation rotates/revokes old refresh tokens,
+	// the old refresh token must no longer work.
+	status, body = doRequest(
+		t,
+		http.MethodPost,
+		"/refresh",
+		"",
+		map[string]string{
+			"refresh_token": auth.RefreshToken,
+		},
+	)
+
+	if status != http.StatusUnauthorized {
+		t.Fatalf(
+			"Expected old refresh token to return 401, got %d: %s",
+			status,
+			string(body),
+		)
+	}
+}
+
+func TestIntegration_RefreshLogin_MissingToken(t *testing.T) {
+	status, body := doRequestWithRefresh(
+		t,
+		http.MethodPost,
+		"/refresh",
+		"",
+		map[string]string{},
+	)
+
+	if status != http.StatusUnauthorized {
+		t.Fatalf(
+			"Expected 401, got %d: %s",
+			status,
+			string(body),
+		)
+	}
+}
+
+func TestIntegration_RefreshLogin_InvalidToken(t *testing.T) {
+	status, body := doRequest(
+		t,
+		http.MethodPost,
+		"/refresh",
+		"this-is-not-a-valid-refresh-token",
+		map[string]string{},
+	)
+
+	if status != http.StatusUnauthorized {
+		t.Fatalf(
+			"Expected 401, got %d: %s",
+			status,
+			string(body),
+		)
+	}
+}
+
+// ============================================================
+// LOGOUT USER
+// ============================================================
+
+func TestIntegration_Logout(t *testing.T) {
+	user, auth := createTestUser(t)
+
+	// Logout the current session.
+	status, body := doRequest(
+		t,
+		http.MethodPost,
+		"/logout",
+		auth.AccessToken,
+		nil,
+	)
+
+	if status != http.StatusOK {
+		t.Fatalf(
+			"Expected 200, got %d: %s",
+			status,
+			string(body),
+		)
+	}
+
+	// The session should now be revoked.
+	//
+	// Try to refresh using the refresh token belonging
+	// to the logged-out session.
+	status, body = doRequest(
+		t,
+		http.MethodPost,
+		"/refresh",
+		"",
+		map[string]string{
+			"refresh_token": auth.RefreshToken,
+		},
+	)
+
+	if status != http.StatusUnauthorized {
+		t.Fatalf(
+			"Expected 401 when refreshing after logout, got %d: %s",
+			status,
+			string(body),
+		)
+	}
+
+	// Make sure the user itself still exists.
+	stored := getUserByID(
+		t,
+		int(user.UserID),
+		// We cannot use the logged-out access token for this
+		// request, so login through another session.
+		loginUser(t, user.Username, user.Password).AccessToken,
+	)
+
+	if stored.ID != int32(user.UserID) {
+		t.Fatalf(
+			"Expected user ID %f, got %d",
+			user.UserID,
+			stored.ID,
+		)
+	}
+}
+
+func TestIntegration_Logout_DoesNotDeleteUser(t *testing.T) {
+	user, auth := createTestUser(t)
+
+	status, body := doRequest(
+		t,
+		http.MethodPost,
+		"/logout",
+		auth.AccessToken,
+		nil,
+	)
+
+	if status != http.StatusOK {
+		t.Fatalf(
+			"Expected 200, got %d: %s",
+			status,
+			string(body),
+		)
+	}
+
+	// Logout should only revoke the session.
+	// The user should still be able to login.
+	newAuth := loginUser(
+		t,
+		user.Username,
+		user.Password,
+	)
+
+	if newAuth.AccessToken == "" {
+		t.Fatal("Expected new access token after logging in again")
+	}
+
+	if newAuth.RefreshToken == "" {
+		t.Fatal("Expected new refresh token after logging in again")
+	}
+}
+
+func TestIntegration_Logout_InvalidToken(t *testing.T) {
+	status, body := doRequest(
+		t,
+		http.MethodPost,
+		"/logout",
+		"invalid-access-token",
+		nil,
+	)
+
+	if status != http.StatusUnauthorized &&
+		status != http.StatusBadRequest {
+		t.Fatalf(
+			"Expected 401 or 400, got %d: %s",
+			status,
+			string(body),
+		)
+	}
+}
+
+// ============================================================
+// LOGOUT ALL
+// ============================================================
+
+func TestIntegration_LogoutAll(t *testing.T) {
+	user, auth1 := createTestUser(t)
+
+	// Create a second independent session for the same user.
+	auth2 := loginUser(
+		t,
+		user.Username,
+		user.Password,
+	)
+
+	if auth1.AccessToken == auth2.AccessToken {
+		t.Fatal("Expected separate login sessions to have different access tokens")
+	}
+
+	if auth1.RefreshToken == auth2.RefreshToken {
+		t.Fatal("Expected separate login sessions to have different refresh tokens")
+	}
+
+	// Logout all sessions using the first access token.
+	status, body := doRequest(
+		t,
+		http.MethodPost,
+		"/logout/all",
+		auth1.AccessToken,
+		nil,
+	)
+
+	if status != http.StatusOK {
+		t.Fatalf(
+			"Expected 200, got %d: %s",
+			status,
+			string(body),
+		)
+	}
+
+	// First session should be revoked.
+	status, body = doRequest(
+		t,
+		http.MethodPost,
+		"/refresh",
+		"",
+		map[string]string{
+			"refresh_token": auth1.RefreshToken,
+		},
+	)
+
+	if status != http.StatusUnauthorized {
+		t.Fatalf(
+			"Expected first session refresh to return 401, got %d: %s",
+			status,
+			string(body),
+		)
+	}
+
+	// Second session should ALSO be revoked.
+	status, body = doRequest(
+		t,
+		http.MethodPost,
+		"/refresh",
+		"",
+		map[string]string{
+			"refresh_token": auth2.RefreshToken,
+		},
+	)
+
+	if status != http.StatusUnauthorized {
+		t.Fatalf(
+			"Expected second session refresh to return 401, got %d: %s",
+			status,
+			string(body),
+		)
+	}
+
+	// The user itself should still exist and be able to log in again.
+	newAuth := loginUser(
+		t,
+		user.Username,
+		user.Password,
+	)
+
+	if newAuth.AccessToken == "" {
+		t.Fatal("Expected user to be able to login after LogoutAll")
+	}
+}
+
+func TestIntegration_LogoutAll_RequiresAuthentication(t *testing.T) {
+	status, body := doRequest(
+		t,
+		http.MethodPost,
+		"/logout/all",
+		"",
+		nil,
+	)
+
+	if status != http.StatusUnauthorized {
+		t.Fatalf(
+			"Expected 401, got %d: %s",
+			status,
+			string(body),
 		)
 	}
 }

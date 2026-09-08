@@ -36,6 +36,13 @@ type AuthResponse struct {
 	Message      string  `json:"message"`
 }
 
+type UserResponse struct {
+	ID        int32  `json:"id"`
+	Username  string `json:"username"`
+	Email     string `json:"email"`
+	Birthdate string `json:"birthdate"`
+}
+
 // waitForApp waits for the application to be ready
 func waitForApp() error {
 	for i := 0; i < 30; i++ {
@@ -100,8 +107,8 @@ func loginUser(t *testing.T, identifier, password string) AuthResponse {
 	t.Helper()
 
 	input := map[string]string{
-		"username": identifier, // accepts username OR email
-		"password": password,
+		"usernameoremail": identifier, // accepts username OR email
+		"password":        password,
 	}
 
 	body, _ := json.Marshal(input)
@@ -150,4 +157,91 @@ func doRequest(t *testing.T, method, path, accessToken string, body interface{})
 
 	respBody, _ := io.ReadAll(resp.Body)
 	return resp.StatusCode, respBody
+}
+
+// doRequest makes an authenticated HTTP request
+func doRequestWithRefresh(t *testing.T, method, path, refreshToken string, body interface{}) (int, []byte) {
+	t.Helper()
+
+	var reqBody io.Reader
+	if body != nil {
+		jsonBody, _ := json.Marshal(body)
+		reqBody = bytes.NewReader(jsonBody)
+	}
+
+	req, err := http.NewRequest(method, baseURL+path, reqBody)
+	if err != nil {
+		t.Fatalf("Failed to create request: %v", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	if refreshToken != "" {
+		req.Header.Set("X-Authorization", refreshToken)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("Request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	return resp.StatusCode, respBody
+}
+
+func getUserByID(t *testing.T, userID int, token string) UserResponse {
+	t.Helper()
+
+	status, body := doRequest(
+		t,
+		http.MethodGet,
+		fmt.Sprintf("/user/id/%d", userID),
+		token,
+		nil,
+	)
+
+	if status != http.StatusOK {
+		t.Fatalf(
+			"Expected 200, got %d: %s",
+			status,
+			string(body),
+		)
+	}
+
+	var user UserResponse
+
+	if err := json.Unmarshal(body, &user); err != nil {
+		t.Fatalf("Failed to decode user response: %v", err)
+	}
+
+	return user
+}
+
+func createTestUser(t *testing.T) (TestUser, AuthResponse) {
+	t.Helper()
+
+	suffix := fmt.Sprintf("%d", time.Now().UnixNano())
+
+	user := TestUser{
+		Username:  "db_user_" + suffix,
+		Email:     "db" + suffix + "@test.com",
+		Password:  "SecurePass123!",
+		Birthdate: "1990-05-15",
+	}
+
+	registeredUser := registerUser(t, user)
+
+	auth := loginUser(
+		t,
+		registeredUser.Username,
+		registeredUser.Password,
+	)
+
+	if auth.UserID == 0 {
+		t.Fatal("Expected non-zero user ID")
+	}
+
+	user.UserID = auth.UserID
+
+	return user, auth
 }

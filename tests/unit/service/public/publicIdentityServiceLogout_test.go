@@ -1,14 +1,15 @@
 package tests
 
 import (
-	authv1 "GoLearning-IdentityMicroService/api/v1"
-	entities "GoLearning-IdentityMicroService/internal/domain"
-	"GoLearning-IdentityMicroService/internal/tokens"
 	"context"
+	"errors"
 	"testing"
 
-	"github.com/go-openapi/testify/v2/require"
+	authv1 "GoLearning-IdentityMicroService/api/v1"
+	entities "GoLearning-IdentityMicroService/internal/domain"
+
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // ============================================================
@@ -16,18 +17,21 @@ import (
 // ============================================================
 
 func TestPublicIdentityService_Logout_Success(t *testing.T) {
-	repo, rdb, svc := newPublicIdentityService(t)
+	repo, mockTokens, svc := newPublicIdentityService(t)
 
-	tokenPair := issueTestTokens(t)
-	persistAccessToken(t, rdb, tokenPair.Access)
+	mockTokens.RevokeSessionFunc = func(
+		ctx context.Context,
+		sessionID string,
+	) error {
+		assert.Equal(t, "session-123", sessionID)
 
-	claims, err := tokens.ParseAccess(tokenPair.Access)
-	require.NoError(t, err)
+		return nil
+	}
 
 	resp, err := svc.Logout(
 		context.Background(),
 		&authv1.LogoutRequest{
-			Token: tokenPair.Access,
+			SessionId: "session-123",
 		},
 	)
 
@@ -36,29 +40,57 @@ func TestPublicIdentityService_Logout_Success(t *testing.T) {
 
 	assert.Equal(t, "logged out successfully", resp.Message)
 
-	// JTI should no longer exist.
-	_, err = rdb.GetUserByJTI(
-		context.Background(),
-		"access:"+claims.ID,
-	)
-
-	assert.Error(t, err)
-
 	repo.AssertExpectations(t)
 }
 
-func TestPublicIdentityService_Logout_InvalidToken(t *testing.T) {
-	repo, _, svc := newPublicIdentityService(t)
+func TestPublicIdentityService_Logout_InvalidSessionID(t *testing.T) {
+	repo, mockTokens, svc := newPublicIdentityService(t)
+
+	mockTokens.RevokeSessionFunc = func(
+		ctx context.Context,
+		sessionID string,
+	) error {
+		assert.Equal(t, "", sessionID)
+
+		return entities.ErrNotFound
+	}
 
 	resp, err := svc.Logout(
 		context.Background(),
 		&authv1.LogoutRequest{
-			Token: "invalid-token",
+			SessionId: "",
 		},
 	)
 
 	assert.Nil(t, resp)
-	assert.ErrorIs(t, err, entities.ErrBadData)
+	assert.ErrorIs(t, err, entities.ErrInternalServerError)
+
+	repo.AssertExpectations(t)
+}
+
+func TestPublicIdentityService_Logout_RevokeSessionError(t *testing.T) {
+	repo, mockTokens, svc := newPublicIdentityService(t)
+
+	revokeErr := errors.New("redis unavailable")
+
+	mockTokens.RevokeSessionFunc = func(
+		ctx context.Context,
+		sessionID string,
+	) error {
+		assert.Equal(t, "session-123", sessionID)
+
+		return revokeErr
+	}
+
+	resp, err := svc.Logout(
+		context.Background(),
+		&authv1.LogoutRequest{
+			SessionId: "session-123",
+		},
+	)
+
+	assert.Nil(t, resp)
+	assert.ErrorIs(t, err, entities.ErrInternalServerError)
 
 	repo.AssertExpectations(t)
 }

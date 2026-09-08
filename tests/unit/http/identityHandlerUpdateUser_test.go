@@ -20,7 +20,8 @@ import (
 
 func TestHandleUpdateUser_Success(t *testing.T) {
 	mockSvc := &mocks.MockPublicIdentityService{}
-	router := setupRouter(mockSvc)
+	tokenManager := &mocks.MockTokenManager{}
+	router := setupRouter(t, mockSvc, tokenManager)
 
 	mockSvc.UpdateUserFunc = func(
 		ctx context.Context,
@@ -42,7 +43,7 @@ func TestHandleUpdateUser_Success(t *testing.T) {
 		"birthdate": "1991-01-01",
 	}
 
-	req := authenticatedRequest(
+	req := authenticatedRequest(t,
 		http.MethodPut,
 		"/users",
 		body,
@@ -58,14 +59,15 @@ func TestHandleUpdateUser_Success(t *testing.T) {
 
 func TestHandleUpdateUser_NoToken(t *testing.T) {
 	mockSvc := &mocks.MockPublicIdentityService{}
-	router := setupRouter(mockSvc)
+	tokenManager := &mocks.MockTokenManager{}
+	router := setupRouter(t, mockSvc, tokenManager)
 
 	body := map[string]string{
 		"username": "newusername",
 		"email":    "new@email.com",
 	}
 
-	req := jsonRequest(http.MethodPut, "/users", body)
+	req := jsonRequest(t, http.MethodPut, "/users", body)
 	w := httptest.NewRecorder()
 
 	router.ServeHTTP(w, req)
@@ -75,7 +77,8 @@ func TestHandleUpdateUser_NoToken(t *testing.T) {
 
 func TestHandleUpdateUser_InvalidJSON(t *testing.T) {
 	mockSvc := &mocks.MockPublicIdentityService{}
-	router := setupRouter(mockSvc)
+	tokenManager := &mocks.MockTokenManager{}
+	router := setupRouter(t, mockSvc, tokenManager)
 
 	req := httptest.NewRequest(
 		http.MethodPut,
@@ -94,7 +97,8 @@ func TestHandleUpdateUser_InvalidJSON(t *testing.T) {
 
 func TestHandleUpdateUser_UserIDComesFromJWT(t *testing.T) {
 	mockSvc := &mocks.MockPublicIdentityService{}
-	router := setupRouter(mockSvc)
+	tokenManager := &mocks.MockTokenManager{}
+	router := setupRouter(t, mockSvc, tokenManager)
 
 	mockSvc.UpdateUserFunc = func(
 		ctx context.Context,
@@ -111,7 +115,7 @@ func TestHandleUpdateUser_UserIDComesFromJWT(t *testing.T) {
 		"birthdate": "1990-01-01",
 	}
 
-	req := authenticatedRequest(
+	req := authenticatedRequest(t,
 		http.MethodPut,
 		"/users",
 		body,
@@ -127,7 +131,8 @@ func TestHandleUpdateUser_UserIDComesFromJWT(t *testing.T) {
 
 func TestHandleUpdateUser_NotFound(t *testing.T) {
 	mockSvc := &mocks.MockPublicIdentityService{}
-	router := setupRouter(mockSvc)
+	tokenManager := &mocks.MockTokenManager{}
+	router := setupRouter(t, mockSvc, tokenManager)
 
 	mockSvc.UpdateUserFunc = func(
 		ctx context.Context,
@@ -142,7 +147,7 @@ func TestHandleUpdateUser_NotFound(t *testing.T) {
 		"birthdate": "1990-01-01",
 	}
 
-	req := authenticatedRequest(
+	req := authenticatedRequest(t,
 		http.MethodPut,
 		"/users",
 		body,
@@ -158,7 +163,8 @@ func TestHandleUpdateUser_NotFound(t *testing.T) {
 
 func TestHandleUpdateUser_ServiceError(t *testing.T) {
 	mockSvc := &mocks.MockPublicIdentityService{}
-	router := setupRouter(mockSvc)
+	tokenManager := &mocks.MockTokenManager{}
+	router := setupRouter(t, mockSvc, tokenManager)
 
 	mockSvc.UpdateUserFunc = func(
 		ctx context.Context,
@@ -173,7 +179,7 @@ func TestHandleUpdateUser_ServiceError(t *testing.T) {
 		"birthdate": "1990-01-01",
 	}
 
-	req := authenticatedRequest(
+	req := authenticatedRequest(t,
 		http.MethodPut,
 		"/users",
 		body,

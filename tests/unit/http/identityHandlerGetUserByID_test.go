@@ -21,7 +21,8 @@ import (
 
 func TestHandleGetUserByID_Success(t *testing.T) {
 	mockSvc := &mocks.MockPublicIdentityService{}
-	router := setupRouter(mockSvc)
+	tokenManager := &mocks.MockTokenManager{}
+	router := setupRouter(t, mockSvc, tokenManager)
 
 	mockSvc.GetUserByIDFunc = func(
 		ctx context.Context,
@@ -36,7 +37,7 @@ func TestHandleGetUserByID_Success(t *testing.T) {
 		}, nil
 	}
 
-	req := authenticatedRequest(
+	req := authenticatedRequest(t,
 		http.MethodGet,
 		"/users/42",
 		nil,
@@ -47,7 +48,7 @@ func TestHandleGetUserByID_Success(t *testing.T) {
 
 	router.ServeHTTP(w, req)
 
-	assert.Equal(t, http.StatusFound, w.Code)
+	assert.Equal(t, http.StatusOK, w.Code)
 
 	var response authv1.GetUserResponse
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
@@ -59,7 +60,8 @@ func TestHandleGetUserByID_Success(t *testing.T) {
 
 func TestHandleGetUserByID_NoToken(t *testing.T) {
 	mockSvc := &mocks.MockPublicIdentityService{}
-	router := setupRouter(mockSvc)
+	tokenManager := &mocks.MockTokenManager{}
+	router := setupRouter(t, mockSvc, tokenManager)
 
 	req := httptest.NewRequest(
 		http.MethodGet,
@@ -76,9 +78,10 @@ func TestHandleGetUserByID_NoToken(t *testing.T) {
 
 func TestHandleGetUserByID_InvalidID(t *testing.T) {
 	mockSvc := &mocks.MockPublicIdentityService{}
-	router := setupRouter(mockSvc)
+	tokenManager := &mocks.MockTokenManager{}
+	router := setupRouter(t, mockSvc, tokenManager)
 
-	req := authenticatedRequest(
+	req := authenticatedRequest(t,
 		http.MethodGet,
 		"/users/invalid",
 		nil,
@@ -94,7 +97,8 @@ func TestHandleGetUserByID_InvalidID(t *testing.T) {
 
 func TestHandleGetUserByID_OtherUser(t *testing.T) {
 	mockSvc := &mocks.MockPublicIdentityService{}
-	router := setupRouter(mockSvc)
+	tokenManager := &mocks.MockTokenManager{}
+	router := setupRouter(t, mockSvc, tokenManager)
 
 	called := false
 
@@ -106,7 +110,7 @@ func TestHandleGetUserByID_OtherUser(t *testing.T) {
 		return nil, nil
 	}
 
-	req := authenticatedRequest(
+	req := authenticatedRequest(t,
 		http.MethodGet,
 		"/users/99",
 		nil,
@@ -123,7 +127,8 @@ func TestHandleGetUserByID_OtherUser(t *testing.T) {
 
 func TestHandleGetUserByID_NotFound(t *testing.T) {
 	mockSvc := &mocks.MockPublicIdentityService{}
-	router := setupRouter(mockSvc)
+	tokenManager := &mocks.MockTokenManager{}
+	router := setupRouter(t, mockSvc, tokenManager)
 
 	mockSvc.GetUserByIDFunc = func(
 		ctx context.Context,
@@ -132,7 +137,7 @@ func TestHandleGetUserByID_NotFound(t *testing.T) {
 		return nil, entities.ErrNotFound
 	}
 
-	req := authenticatedRequest(
+	req := authenticatedRequest(t,
 		http.MethodGet,
 		"/users/42",
 		nil,
@@ -148,7 +153,8 @@ func TestHandleGetUserByID_NotFound(t *testing.T) {
 
 func TestHandleGetUserByID_ServiceError(t *testing.T) {
 	mockSvc := &mocks.MockPublicIdentityService{}
-	router := setupRouter(mockSvc)
+	tokenManager := &mocks.MockTokenManager{}
+	router := setupRouter(t, mockSvc, tokenManager)
 
 	mockSvc.GetUserByIDFunc = func(
 		ctx context.Context,
@@ -157,7 +163,7 @@ func TestHandleGetUserByID_ServiceError(t *testing.T) {
 		return nil, errors.New("database unavailable")
 	}
 
-	req := authenticatedRequest(
+	req := authenticatedRequest(t,
 		http.MethodGet,
 		"/users/42",
 		nil,

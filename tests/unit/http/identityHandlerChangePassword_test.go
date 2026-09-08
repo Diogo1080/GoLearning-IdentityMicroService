@@ -20,7 +20,8 @@ import (
 
 func TestHandleUpdatePassword_Success(t *testing.T) {
 	mockSvc := &mocks.MockPublicIdentityService{}
-	router := setupRouter(mockSvc)
+	tokenManager := &mocks.MockTokenManager{}
+	router := setupRouter(t, mockSvc, tokenManager)
 
 	mockSvc.ChangePasswordFunc = func(
 		ctx context.Context,
@@ -41,6 +42,7 @@ func TestHandleUpdatePassword_Success(t *testing.T) {
 	}
 
 	req := authenticatedRequest(
+		t,
 		http.MethodPatch,
 		"/password",
 		body,
@@ -56,7 +58,8 @@ func TestHandleUpdatePassword_Success(t *testing.T) {
 
 func TestHandleUpdatePassword_NoToken(t *testing.T) {
 	mockSvc := &mocks.MockPublicIdentityService{}
-	router := setupRouter(mockSvc)
+	tokenManager := &mocks.MockTokenManager{}
+	router := setupRouter(t, mockSvc, tokenManager)
 
 	body := map[string]string{
 		"current_password": "OldPassword123!",
@@ -64,6 +67,7 @@ func TestHandleUpdatePassword_NoToken(t *testing.T) {
 	}
 
 	req := jsonRequest(
+		t,
 		http.MethodPatch,
 		"/password",
 		body,
@@ -78,7 +82,8 @@ func TestHandleUpdatePassword_NoToken(t *testing.T) {
 
 func TestHandleUpdatePassword_InvalidJSON(t *testing.T) {
 	mockSvc := &mocks.MockPublicIdentityService{}
-	router := setupRouter(mockSvc)
+	tokenManager := &mocks.MockTokenManager{}
+	router := setupRouter(t, mockSvc, tokenManager)
 
 	req := httptest.NewRequest(
 		http.MethodPatch,
@@ -97,7 +102,8 @@ func TestHandleUpdatePassword_InvalidJSON(t *testing.T) {
 
 func TestHandleUpdatePassword_UserIDComesFromJWT(t *testing.T) {
 	mockSvc := &mocks.MockPublicIdentityService{}
-	router := setupRouter(mockSvc)
+	tokenManager := &mocks.MockTokenManager{}
+	router := setupRouter(t, mockSvc, tokenManager)
 
 	mockSvc.ChangePasswordFunc = func(
 		ctx context.Context,
@@ -114,6 +120,7 @@ func TestHandleUpdatePassword_UserIDComesFromJWT(t *testing.T) {
 	}
 
 	req := authenticatedRequest(
+		t,
 		http.MethodPatch,
 		"/password",
 		body,
@@ -129,7 +136,8 @@ func TestHandleUpdatePassword_UserIDComesFromJWT(t *testing.T) {
 
 func TestHandleUpdatePassword_NotFound(t *testing.T) {
 	mockSvc := &mocks.MockPublicIdentityService{}
-	router := setupRouter(mockSvc)
+	tokenManager := &mocks.MockTokenManager{}
+	router := setupRouter(t, mockSvc, tokenManager)
 
 	mockSvc.ChangePasswordFunc = func(
 		ctx context.Context,
@@ -144,6 +152,7 @@ func TestHandleUpdatePassword_NotFound(t *testing.T) {
 	}
 
 	req := authenticatedRequest(
+		t,
 		http.MethodPatch,
 		"/password",
 		body,
@@ -159,7 +168,8 @@ func TestHandleUpdatePassword_NotFound(t *testing.T) {
 
 func TestHandleUpdatePassword_ServiceError(t *testing.T) {
 	mockSvc := &mocks.MockPublicIdentityService{}
-	router := setupRouter(mockSvc)
+	tokenManager := &mocks.MockTokenManager{}
+	router := setupRouter(t, mockSvc, tokenManager)
 
 	mockSvc.ChangePasswordFunc = func(
 		ctx context.Context,
@@ -174,6 +184,7 @@ func TestHandleUpdatePassword_ServiceError(t *testing.T) {
 	}
 
 	req := authenticatedRequest(
+		t,
 		http.MethodPatch,
 		"/password",
 		body,

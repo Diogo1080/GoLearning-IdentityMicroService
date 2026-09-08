@@ -5,7 +5,6 @@ import (
 	entities "GoLearning-IdentityMicroService/internal/domain"
 	"GoLearning-IdentityMicroService/internal/logger"
 	store "GoLearning-IdentityMicroService/internal/store"
-	tokens "GoLearning-IdentityMicroService/internal/tokens"
 	"context"
 	"log/slog"
 	"strconv"
@@ -14,72 +13,60 @@ import (
 type InternalIdentityService struct {
 	authv1.UnimplementedInternalIdentityServiceServer
 	repo   store.IdentityRepository
-	rds    *store.Redis
+	tokens TokenManagerPort
 	logger *slog.Logger
 }
 
-func NewInternalIdentityService(repo store.IdentityRepository, rds *store.Redis) *InternalIdentityService {
-	return &InternalIdentityService{repo: repo, rds: rds, logger: logger.New().WithGroup("InternalIdentityService")}
+func NewInternalIdentityService(repo store.IdentityRepository, tokens TokenManagerPort) *InternalIdentityService {
+	return &InternalIdentityService{repo: repo, tokens: tokens, logger: logger.New().WithGroup("InternalIdentityService")}
 }
 
-// ValidateToken checks if access token is valid and not revoked
+// ValidateToken checks if an access token is valid and not revoked.
+//
+// A token is considered valid when:
+//   - the JWT signature is valid
+//   - the token is an access token
+//   - the user exists
+//   - the user version matches Redis
+//   - the session exists
+//   - the session version matches Redis
 func (s *InternalIdentityService) ValidateToken(ctx context.Context, req *authv1.ValidateTokenRequest) (*authv1.ValidateTokenResponse, error) {
 	s.logger.Info("Attempting to validate token")
-	claims, err := tokens.ParseAccess(req.Token)
+
+	claims, err := s.tokens.ParseAccess(req.Token)
 	if err != nil {
-		s.logger.Error("Invalid Token")
-		return nil, entities.ErrBadData
+		s.logger.Error("Invalid token", "err", err)
+		return nil, entities.ErrUnauthorized
 	}
 
-	_, err = s.rds.GetUserByJTI(ctx, "access:"+claims.ID)
+	ok, err := s.tokens.ValidateToken(ctx, claims)
 	if err != nil {
-		s.logger.Error("User is not Logged in")
-		return nil, entities.ErrNotFound
-	}
-
-	userID, err := strconv.Atoi(claims.Subject)
-
-	if err != nil {
-		s.logger.Error("Invalid User ID")
+		s.logger.Error("Error validating token", "err", err)
 		return nil, entities.ErrInternalServerError
 	}
 
-	s.logger.Info("Validate succesful.")
+	if !ok {
+		s.logger.Error(
+			"Token is revoked or session is no longer valid",
+			"user_id", claims.Subject,
+			"session_id", claims.SessionID,
+		)
+		return nil, entities.ErrUnauthorized
+	}
+
+	userID, err := strconv.ParseInt(claims.Subject, 10, 32)
+	if err != nil {
+		s.logger.Error("Invalid user ID", "err", err)
+		return nil, entities.ErrInternalServerError
+	}
+
+	s.logger.Info(
+		"Token validation successful",
+		"user_id", claims.Subject,
+		"session_id", claims.SessionID,
+	)
+
 	return &authv1.ValidateTokenResponse{
 		UserId: int32(userID),
-	}, nil
-}
-
-// RefreshToken issues new tokens using refresh token
-func (s *InternalIdentityService) RefreshToken(ctx context.Context, req *authv1.RefreshTokenRequest) (*authv1.RefreshTokenResponse, error) {
-	s.logger.Info("Attempting to Refresh Token", "request", req)
-
-	claims, err := tokens.ParseRefresh(req.RefreshToken)
-	if err != nil {
-		s.logger.Error("Invalid token")
-		return nil, entities.ErrBadData
-	}
-
-	_, err = s.rds.GetUserByJTI(ctx, "refresh:"+claims.ID)
-	if err != nil {
-		s.logger.Error("User is not logged in")
-		return nil, entities.ErrNotFound
-	}
-
-	newTokens, err := tokens.IssueTokens(claims.Subject)
-	if err != nil {
-		s.logger.Error("Error refreshing tokens", "err", err)
-		return nil, entities.ErrInternalServerError
-	}
-
-	if err := tokens.Persist(ctx, s.rds, newTokens); err != nil {
-		s.logger.Error("Error persisting refreshed tokens", "err", err)
-		return nil, entities.ErrInternalServerError
-	}
-
-	s.logger.Info("Refresh succesful")
-	return &authv1.RefreshTokenResponse{
-		AccessToken:  newTokens.Access,
-		RefreshToken: newTokens.Refresh,
 	}, nil
 }

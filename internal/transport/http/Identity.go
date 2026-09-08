@@ -17,9 +17,17 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+type TokenManagerPort interface {
+	ClearAuthCookies(ctx *gin.Context)
+
+	GetUserIDFromAccessToken(token string) (string, error)
+	GetSessionIDFromAccessToken(token string) (string, error)
+}
+
 type identityServicePort interface {
 	Register(context.Context, *authv1.RegisterRequest) (*authv1.RegisterResponse, error)
 	Login(context.Context, *authv1.LoginRequest) (*authv1.LoginResponse, error)
+	RefreshLogin(context.Context, *authv1.RefreshLoginRequest) (*authv1.LoginResponse, error)
 	GetUserByID(context.Context, *authv1.GetUserRequest) (*authv1.GetUserResponse, error)
 	GetUserByEmail(context.Context, *authv1.GetUserRequest) (*authv1.GetUserResponse, error)
 	GetUserByUsername(context.Context, *authv1.GetUserRequest) (*authv1.GetUserResponse, error)
@@ -27,15 +35,17 @@ type identityServicePort interface {
 	DeleteUser(context.Context, *authv1.DeleteUserRequest) (*authv1.DeleteUserResponse, error)
 	ChangePassword(context.Context, *authv1.ChangePasswordRequest) (*authv1.ChangePasswordResponse, error)
 	Logout(context.Context, *authv1.LogoutRequest) (*authv1.LogoutResponse, error)
+	LogoutAll(context.Context, *authv1.LogoutAllRequest) (*authv1.LogoutResponse, error)
 }
 
 type IdentityHandler struct {
 	identityService identityServicePort
+	tokens          TokenManagerPort
 	logger          *slog.Logger
 }
 
-func NewIdentityHandler(identityService identityServicePort) *IdentityHandler {
-	return &IdentityHandler{identityService: identityService, logger: logger.New().WithGroup("IdentityHandler")}
+func NewIdentityHandler(identityService identityServicePort, tokens TokenManagerPort) *IdentityHandler {
+	return &IdentityHandler{identityService: identityService, tokens: tokens, logger: logger.New().WithGroup("IdentityHandler")}
 }
 
 // HTTP acepted and no jwt required
@@ -86,12 +96,12 @@ func (h *IdentityHandler) HandleRegister(c *gin.Context) {
 }
 
 func (h *IdentityHandler) HandleLogin(c *gin.Context) {
-	type LoginInput struct {
-		Username string `json:"username" binding:"required"`
-		Password string `json:"password" binding:"required"`
+	type LoginRequest struct {
+		Usernameoremail string `json:"usernameoremail" binding:"required"`
+		Password        string `json:"password" binding:"required"`
 	}
 
-	var input LoginInput
+	var input LoginRequest
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, entities.ErrBadData)
 		return
@@ -101,7 +111,7 @@ func (h *IdentityHandler) HandleLogin(c *gin.Context) {
 	defer cancel()
 
 	resp, err := h.identityService.Login(ctx, &authv1.LoginRequest{
-		Usernameoremail: input.Username,
+		Usernameoremail: input.Usernameoremail,
 		Password:        input.Password,
 	})
 
@@ -139,7 +149,55 @@ func (h *IdentityHandler) HandleLogin(c *gin.Context) {
 	})
 }
 
-// HTTP acepted and jwt required
+func (h *IdentityHandler) HandleRefreshLogin(c *gin.Context) {
+	refresh := refreshFromHeader(c)
+
+	if refresh == "" {
+		refresh = refreshFromCookie(c)
+	}
+
+	if refresh == "" {
+		c.JSON(http.StatusUnauthorized, entities.ErrUnauthorized)
+		return
+	}
+
+	fmt.Print(refresh)
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer cancel()
+
+	resp, err := h.identityService.RefreshLogin(ctx, &authv1.RefreshLoginRequest{
+		RefreshToken: refresh,
+	})
+
+	fmt.Print(err)
+	fmt.Print(resp)
+
+	if err != nil {
+		if errors.Is(err, entities.ErrUnauthorized) {
+			c.JSON(http.StatusUnauthorized, err)
+			return
+		}
+
+		c.JSON(http.StatusInternalServerError, err)
+		return
+	}
+
+	if resp == nil {
+		c.JSON(http.StatusUnauthorized, entities.ErrUnauthorized)
+		return
+	}
+
+	// Set cookies for browser clients
+	h.setAuthCookies(c, resp.AccessToken, resp.RefreshToken)
+
+	c.JSON(http.StatusOK, gin.H{
+		"access_token":  resp.AccessToken,
+		"refresh_token": resp.RefreshToken,
+		"user_id":       resp.UserId,
+		"message":       resp.Message,
+	})
+}
 
 func (h *IdentityHandler) HandleGetUserByEmail(c *gin.Context) {
 	authID, ok := getUserID(c)
@@ -169,7 +227,7 @@ func (h *IdentityHandler) HandleGetUserByEmail(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusFound, user)
+	c.JSON(http.StatusOK, user)
 }
 
 func (h *IdentityHandler) HandleGetUserByUsername(c *gin.Context) {
@@ -201,7 +259,7 @@ func (h *IdentityHandler) HandleGetUserByUsername(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusFound, user)
+	c.JSON(http.StatusOK, user)
 }
 
 func (h *IdentityHandler) HandleGetUserByID(c *gin.Context) {
@@ -239,7 +297,7 @@ func (h *IdentityHandler) HandleGetUserByID(c *gin.Context) {
 	}
 
 	h.logger.Info("Responding")
-	c.JSON(http.StatusFound, user)
+	c.JSON(http.StatusOK, user)
 }
 
 // HandleUpdateUser
@@ -267,6 +325,10 @@ func (h *IdentityHandler) HandleUpdateUser(c *gin.Context) {
 	if err != nil {
 		if errors.Is(err, entities.ErrNotFound) {
 			c.JSON(http.StatusNotFound, err)
+			return
+		}
+		if errors.Is(err, entities.ErrConflict) {
+			c.JSON(http.StatusConflict, err)
 			return
 		}
 		c.JSON(http.StatusInternalServerError, entities.ErrDatabaseFailed)
@@ -329,7 +391,6 @@ func (h *IdentityHandler) HandleDeleteUser(c *gin.Context) {
 		return
 	}
 
-	fmt.Print(authID, idint)
 	if idint != authID {
 		c.JSON(http.StatusForbidden, entities.ErrUnauthorized)
 		return
@@ -348,31 +409,74 @@ func (h *IdentityHandler) HandleDeleteUser(c *gin.Context) {
 }
 
 func (h *IdentityHandler) HandleLogout(c *gin.Context) {
-	token, _ := c.Cookie("access_token")
-	if token == "" {
+	token, err := c.Cookie("access_token")
+
+	if err != nil {
 		token = bearerFromHeader(c)
 	}
 
 	if token == "" {
-		c.JSON(http.StatusBadRequest, entities.ErrBadData)
+		c.JSON(http.StatusUnauthorized, entities.ErrUnauthorized)
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
-	defer cancel()
+	sessionID, err := h.tokens.GetSessionIDFromAccessToken(token)
 
-	_, err := h.identityService.Logout(ctx, &authv1.LogoutRequest{Token: token})
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, entities.ErrUnauthorized)
+	}
+
+	h.tokens.ClearAuthCookies(c)
+
+	_, err = h.identityService.Logout(c, &authv1.LogoutRequest{
+		SessionId: sessionID,
+	})
+
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, entities.ErrUnauthorized)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "logged out successfully",
+	})
+}
+
+func (h *IdentityHandler) HandleLogoutAll(c *gin.Context) {
+	token, err := c.Cookie("access_token")
+
+	if err != nil {
+		token = bearerFromHeader(c)
+	}
+
+	userID, err := h.tokens.GetUserIDFromAccessToken(token)
+	h.tokens.ClearAuthCookies(c)
+
+	if err != nil {
+		h.logger.Info("Failed to get userID from access token", "error", err)
+		c.JSON(http.StatusUnauthorized, entities.ErrUnauthorized)
+		return
+	}
+
+	id, err := strconv.ParseInt(userID, 10, 32)
+	if err != nil {
+		h.logger.Info("User ID is invalid", "error", err)
+		c.JSON(http.StatusUnauthorized, entities.ErrUnauthorized)
+		return
+	}
+
+	_, err = h.identityService.LogoutAll(c, &authv1.LogoutAllRequest{
+		UserId: int32(id),
+	})
+
 	if err != nil {
 		c.JSON(http.StatusServiceUnavailable, entities.ErrServiceUnavailable)
 		return
 	}
 
-	// Clear cookies
-	c.SetSameSite(http.SameSiteLaxMode)
-	c.SetCookie("access_token", "", -1, "/", "", true, true)
-	c.SetCookie("refresh_token", "", -1, "/", "", true, true)
-
-	c.JSON(http.StatusOK, gin.H{"message": "logged out successfully"})
+	c.JSON(http.StatusOK, gin.H{
+		"message": "logged out successfully",
+	})
 }
 
 // Helper functions
@@ -384,6 +488,30 @@ func (h *IdentityHandler) setAuthCookies(c *gin.Context, accessToken, refreshTok
 	c.SetSameSite(http.SameSiteLaxMode)
 	c.SetCookie("access_token", accessToken, expAcc, "/", "", true, true)
 	c.SetCookie("refresh_token", refreshToken, expRef, "/", "", true, true)
+}
+
+func refreshFromCookie(c *gin.Context) string {
+	h, err := c.Cookie("refresh_token")
+	if err == nil {
+		if len(h) > 7 && h[:7] == "Bearer " {
+			return h[7:]
+		}
+	}
+	return ""
+}
+
+func refreshFromHeader(c *gin.Context) string {
+	return c.GetHeader("X-Authorization")
+}
+
+func bearerFromCookie(c *gin.Context) string {
+	h, err := c.Cookie("access_token")
+	if err == nil {
+		if len(h) > 7 && h[:7] == "Bearer " {
+			return h[7:]
+		}
+	}
+	return ""
 }
 
 func bearerFromHeader(c *gin.Context) string {
@@ -403,4 +531,11 @@ func getUserID(c *gin.Context) (int, bool) {
 		return int(userID), true
 	}
 	return 0, false
+}
+
+func clearAuthCookies(c *gin.Context) {
+	c.SetSameSite(http.SameSiteLaxMode)
+
+	c.SetCookie("access_token", "", -1, "/", "", true, true)
+	c.SetCookie("refresh_token", "", -1, "/", "", true, true)
 }

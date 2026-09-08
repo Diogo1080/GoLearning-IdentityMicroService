@@ -5,7 +5,6 @@ import (
 	entities "GoLearning-IdentityMicroService/internal/domain"
 	"GoLearning-IdentityMicroService/internal/logger"
 	store "GoLearning-IdentityMicroService/internal/store"
-	tokens "GoLearning-IdentityMicroService/internal/tokens"
 	"GoLearning-IdentityMicroService/internal/validation"
 	"log/slog"
 
@@ -18,14 +17,14 @@ import (
 type PublicIdentityService struct {
 	authv1.UnimplementedPublicIdentityServiceServer
 	repo   store.IdentityRepository
-	rds    *store.Redis
+	tokens TokenManagerPort
 	logger *slog.Logger
 }
 
 //TODO make this service depend on User Service
 
-func NewPublicIdentityService(repo store.IdentityRepository, rds *store.Redis) *PublicIdentityService {
-	return &PublicIdentityService{repo: repo, rds: rds, logger: logger.New().WithGroup("PublicIdentityService")}
+func NewPublicIdentityService(repo store.IdentityRepository, tokens TokenManagerPort) *PublicIdentityService {
+	return &PublicIdentityService{repo: repo, tokens: tokens, logger: logger.New().WithGroup("PublicIdentityService")}
 }
 
 // Register creates a new user account
@@ -115,14 +114,9 @@ func (s *PublicIdentityService) Login(ctx context.Context, req *authv1.LoginRequ
 		return nil, entities.ErrUnauthorized
 	}
 
-	token, err := tokens.IssueTokens(strconv.Itoa(int(user.ID)))
+	token, err := s.tokens.IssueTokens(ctx, strconv.Itoa(int(user.ID)))
 	if err != nil {
 		s.logger.Error("Error issuing tokens", "err", err)
-		return nil, entities.ErrInternalServerError
-	}
-
-	if err := tokens.Persist(ctx, s.rds, token); err != nil {
-		s.logger.Error("Error persisting tokens", "err", err)
 		return nil, entities.ErrInternalServerError
 	}
 
@@ -135,27 +129,98 @@ func (s *PublicIdentityService) Login(ctx context.Context, req *authv1.LoginRequ
 	}, nil
 }
 
-// Logout revokes access token
-func (s *PublicIdentityService) Logout(ctx context.Context, req *authv1.LogoutRequest) (*authv1.LogoutResponse, error) {
-	s.logger.Info("Attempting Logout", "request", req)
+// RefreshToken issues new access + refresh tokens using a valid refresh token.
+//
+// The refreshed tokens belong to the SAME session as the original refresh
+// token. Refreshing a token does not create a new login/session.
+func (s *PublicIdentityService) RefreshLogin(ctx context.Context, req *authv1.RefreshLoginRequest) (*authv1.LoginResponse, error) {
+	s.logger.Info("Attempting to refresh token")
 
-	claims, err := tokens.ParseAccess(req.Token)
+	claims, err := s.tokens.ParseRefresh(req.RefreshToken)
 	if err != nil {
-		s.logger.Error("Invalid token")
-		return nil, entities.ErrBadData
+		s.logger.Error("Invalid refresh token", "err", err)
+		return nil, entities.ErrUnauthorized
 	}
 
-	err = s.rds.DelJTI(ctx, "access:"+claims.ID)
+	// Make sure the refresh token's user + session are still valid.
+	ok, err := s.tokens.ValidateToken(ctx, claims)
 	if err != nil {
-		s.logger.Error("Failed to delete token")
+		s.logger.Error("Error validating refresh token", "err", err)
+		return nil, entities.ErrUnauthorized
+	}
+
+	if !ok {
+		s.logger.Error(
+			"Refresh token is revoked or session is no longer valid",
+			"user_id", claims.Subject,
+			"session_id", claims.SessionID,
+		)
+		return nil, entities.ErrUnauthorized
+	}
+
+	// Issue new tokens for the EXISTING session.
+	newTokens, err := s.tokens.IssueTokensForSession(
+		ctx,
+		claims.Subject,
+		claims.SessionID,
+	)
+
+	if err != nil {
+		s.logger.Error("Error refreshing tokens", "err", err)
 		return nil, entities.ErrInternalServerError
 	}
 
-	s.logger.Info("logged out successfully")
+	s.logger.Info(
+		"Refresh successful",
+		"user_id", claims.Subject,
+		"session_id", claims.SessionID,
+	)
+
+	userid, err := strconv.Atoi(claims.Subject)
+	if err != nil {
+		return nil, entities.ErrInternalServerError
+	}
+
+	return &authv1.LoginResponse{
+		AccessToken:  newTokens.Access,
+		RefreshToken: newTokens.Refresh,
+		UserId:       int32(userid),
+		Message:      "login successful",
+	}, nil
+}
+
+func (s *PublicIdentityService) Logout(ctx context.Context, req *authv1.LogoutRequest) (*authv1.LogoutResponse, error) {
+	s.logger.Info("Attempting Logout")
+
+	err := s.tokens.RevokeSession(ctx, req.SessionId)
+
+	if err != nil {
+		s.logger.Error("Error revoking tokens", "err", err)
+		return nil, entities.ErrInternalServerError
+	}
+
+	s.logger.Info("Logged out successfully")
+
 	return &authv1.LogoutResponse{
 		Message: "logged out successfully",
 	}, nil
+}
 
+func (s *PublicIdentityService) LogoutAll(ctx context.Context, req *authv1.LogoutAllRequest) (*authv1.LogoutResponse, error) {
+	s.logger.Info("Attempting Logout")
+
+	err := s.tokens.RevokeAllTokens(ctx, strconv.Itoa(int(req.UserId)))
+
+	if err != nil {
+		s.logger.Error("Error revoking tokens", "err", err)
+		return nil, entities.ErrInternalServerError
+	}
+
+	s.logger.Info("Logged out successfully")
+
+	return &authv1.LogoutResponse{
+		Message: "logged out successfully",
+	}, nil
 }
 
 func (s *PublicIdentityService) GetUserByID(ctx context.Context, req *authv1.GetUserRequest) (*authv1.GetUserResponse, error) {
@@ -266,6 +331,8 @@ func (s *PublicIdentityService) ChangePassword(ctx context.Context, req *authv1.
 		s.logger.Error("Failed Updating user", "err", err)
 		return &authv1.ChangePasswordResponse{Success: false}, err
 	}
+
+	s.tokens.RevokeAllTokens(ctx, strconv.Itoa(int(req.UserId)))
 
 	s.logger.Info("Update succesful")
 	return &authv1.ChangePasswordResponse{Success: true}, nil

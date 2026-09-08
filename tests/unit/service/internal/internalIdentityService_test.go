@@ -2,19 +2,28 @@ package tests
 
 import (
 	"context"
+	"errors"
 	"os"
 	"testing"
-	"time"
 
 	authv1 "GoLearning-IdentityMicroService/api/v1"
 	entities "GoLearning-IdentityMicroService/internal/domain"
 	"GoLearning-IdentityMicroService/internal/service"
-
 	"GoLearning-IdentityMicroService/internal/tokens"
 	"GoLearning-IdentityMicroService/tests/mocks"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+)
+
+// ============================================================
+// TEST CONSTANTS
+// ============================================================
+
+const (
+	testUserID    = "42"
+	testSessionID = "session-123"
 )
 
 func TestMain(t *testing.M) {
@@ -24,23 +33,56 @@ func TestMain(t *testing.M) {
 }
 
 // ============================================================
+// HELPERS
+// ============================================================
+
+func newService(mockTokens *mocks.MockTokenManager) *service.InternalIdentityService {
+	mockIdentityRepo := &mocks.MockIdentityRepository{}
+
+	return service.NewInternalIdentityService(
+		mockIdentityRepo,
+		mockTokens,
+	)
+}
+
+func validClaims() *tokens.Claims {
+	return &tokens.Claims{
+		SessionID: testSessionID,
+		RegisteredClaims: jwt.RegisteredClaims{
+			Subject: testUserID,
+		},
+	}
+}
+
+// ============================================================
 // VALIDATE TOKEN
 // ============================================================
 
 func TestValidateToken_Success(t *testing.T) {
-	rdb, _ := mocks.NewTestRedis(t)
-	mockIdentityRepo := &mocks.MockIdentityRepository{}
+	mockTokens := &mocks.MockTokenManager{
+		ParseAccessFunc: func(token string) (*tokens.Claims, error) {
+			assert.Equal(t, "valid-access-token", token)
 
-	svc := service.NewInternalIdentityService(mockIdentityRepo, rdb)
+			return validClaims(), nil
+		},
 
-	tokenPair := issueTestTokens(t)
+		ValidateTokenFunc: func(
+			ctx context.Context,
+			claims *tokens.Claims,
+		) (bool, error) {
+			assert.Equal(t, testUserID, claims.Subject)
+			assert.Equal(t, testSessionID, claims.SessionID)
 
-	persistAccessToken(t, rdb, tokenPair.Access)
+			return true, nil
+		},
+	}
+
+	svc := newService(mockTokens)
 
 	resp, err := svc.ValidateToken(
 		context.Background(),
 		&authv1.ValidateTokenRequest{
-			Token: tokenPair.Access,
+			Token: "valid-access-token",
 		},
 	)
 
@@ -50,10 +92,18 @@ func TestValidateToken_Success(t *testing.T) {
 	assert.Equal(t, int32(42), resp.UserId)
 }
 
-func TestValidateToken_InvalidToken(t *testing.T) {
-	rdb, _ := mocks.NewTestRedis(t)
-	mockIdentityRepo := &mocks.MockIdentityRepository{}
-	svc := service.NewInternalIdentityService(mockIdentityRepo, rdb)
+func TestValidateToken_ParseError(t *testing.T) {
+	parseErr := errors.New("invalid access token")
+
+	mockTokens := &mocks.MockTokenManager{
+		ParseAccessFunc: func(token string) (*tokens.Claims, error) {
+			assert.Equal(t, "invalid-token", token)
+
+			return nil, parseErr
+		},
+	}
+
+	svc := newService(mockTokens)
 
 	resp, err := svc.ValidateToken(
 		context.Background(),
@@ -63,168 +113,167 @@ func TestValidateToken_InvalidToken(t *testing.T) {
 	)
 
 	assert.Nil(t, resp)
-	assert.ErrorIs(t, err, entities.ErrBadData)
+	assert.ErrorIs(t, err, entities.ErrUnauthorized)
 }
 
-func TestValidateToken_TokenNotFoundInRedis(t *testing.T) {
-	rdb, _ := mocks.NewTestRedis(t)
-	mockIdentityRepo := &mocks.MockIdentityRepository{}
-	svc := service.NewInternalIdentityService(mockIdentityRepo, rdb)
+func TestValidateToken_ValidationReturnsFalse(t *testing.T) {
+	validateCalled := false
 
-	tokenPair := issueTestTokens(t)
-
-	// JWT is valid, but its JTI is not in Redis.
-	resp, err := svc.ValidateToken(
-		context.Background(),
-		&authv1.ValidateTokenRequest{
-			Token: tokenPair.Access,
+	mockTokens := &mocks.MockTokenManager{
+		ParseAccessFunc: func(token string) (*tokens.Claims, error) {
+			return validClaims(), nil
 		},
-	)
 
-	assert.Nil(t, resp)
-	assert.ErrorIs(t, err, entities.ErrNotFound)
-}
+		ValidateTokenFunc: func(
+			ctx context.Context,
+			claims *tokens.Claims,
+		) (bool, error) {
+			validateCalled = true
 
-func TestValidateToken_ExpiredRedisEntry(t *testing.T) {
-	rdb, mr := mocks.NewTestRedis(t)
-	mockIdentityRepo := &mocks.MockIdentityRepository{}
-	svc := service.NewInternalIdentityService(mockIdentityRepo, rdb)
+			assert.Equal(t, testUserID, claims.Subject)
+			assert.Equal(t, testSessionID, claims.SessionID)
 
-	tokenPair := issueTestTokens(t)
+			return false, nil
+		},
+	}
 
-	claims, err := tokens.ParseAccess(tokenPair.Access)
-	require.NoError(t, err)
-
-	err = rdb.SetJTI(
-		context.Background(),
-		"access:"+claims.ID,
-		testUserIdString,
-		time.Now().Add(1*time.Minute),
-	)
-	require.NoError(t, err)
-
-	// Simulate Redis TTL expiration.
-	mr.FastForward(2 * time.Minute)
+	svc := newService(mockTokens)
 
 	resp, err := svc.ValidateToken(
 		context.Background(),
 		&authv1.ValidateTokenRequest{
-			Token: tokenPair.Access,
+			Token: "revoked-token",
 		},
 	)
 
 	assert.Nil(t, resp)
-	assert.ErrorIs(t, err, entities.ErrNotFound)
+	assert.ErrorIs(t, err, entities.ErrUnauthorized)
+	assert.True(t, validateCalled)
 }
 
-// ============================================================
-// REFRESH TOKEN
-// ============================================================
+func TestValidateToken_ValidationError(t *testing.T) {
+	validationErr := errors.New("token validation failed")
 
-func TestRefreshToken_Success(t *testing.T) {
-	rdb, _ := mocks.NewTestRedis(t)
-	mockIdentityRepo := &mocks.MockIdentityRepository{}
-	svc := service.NewInternalIdentityService(mockIdentityRepo, rdb)
+	mockTokens := &mocks.MockTokenManager{
+		ParseAccessFunc: func(token string) (*tokens.Claims, error) {
+			return validClaims(), nil
+		},
 
-	oldTokens := issueTestTokens(t)
+		ValidateTokenFunc: func(
+			ctx context.Context,
+			claims *tokens.Claims,
+		) (bool, error) {
+			return false, validationErr
+		},
+	}
 
-	persistRefreshToken(t, rdb, oldTokens.Refresh)
+	svc := newService(mockTokens)
 
-	oldClaims, err := tokens.ParseRefresh(oldTokens.Refresh)
-	require.NoError(t, err)
-
-	resp, err := svc.RefreshToken(
+	resp, err := svc.ValidateToken(
 		context.Background(),
-		&authv1.RefreshTokenRequest{
-			RefreshToken: oldTokens.Refresh,
+		&authv1.ValidateTokenRequest{
+			Token: "valid-token",
+		},
+	)
+
+	assert.Nil(t, resp)
+	assert.ErrorIs(t, err, entities.ErrInternalServerError)
+}
+
+func TestValidateToken_InvalidUserID(t *testing.T) {
+	mockTokens := &mocks.MockTokenManager{
+		ParseAccessFunc: func(token string) (*tokens.Claims, error) {
+			return &tokens.Claims{
+				SessionID: testSessionID,
+				RegisteredClaims: jwt.RegisteredClaims{
+					Subject: "not-a-number",
+				},
+			}, nil
+		},
+
+		ValidateTokenFunc: func(
+			ctx context.Context,
+			claims *tokens.Claims,
+		) (bool, error) {
+			return true, nil
+		},
+	}
+
+	svc := newService(mockTokens)
+
+	resp, err := svc.ValidateToken(
+		context.Background(),
+		&authv1.ValidateTokenRequest{
+			Token: "valid-token",
+		},
+	)
+
+	assert.Nil(t, resp)
+	assert.ErrorIs(t, err, entities.ErrInternalServerError)
+}
+
+func TestValidateToken_UserIDTooLargeForInt32(t *testing.T) {
+	mockTokens := &mocks.MockTokenManager{
+		ParseAccessFunc: func(token string) (*tokens.Claims, error) {
+			return &tokens.Claims{
+				SessionID: testSessionID,
+				RegisteredClaims: jwt.RegisteredClaims{
+					Subject: "2147483648",
+				},
+			}, nil
+		},
+
+		ValidateTokenFunc: func(
+			ctx context.Context,
+			claims *tokens.Claims,
+		) (bool, error) {
+			return true, nil
+		},
+	}
+
+	svc := newService(mockTokens)
+
+	resp, err := svc.ValidateToken(
+		context.Background(),
+		&authv1.ValidateTokenRequest{
+			Token: "valid-token",
+		},
+	)
+
+	assert.Nil(t, resp)
+	assert.ErrorIs(t, err, entities.ErrInternalServerError)
+}
+
+func TestValidateToken_NegativeUserID(t *testing.T) {
+	mockTokens := &mocks.MockTokenManager{
+		ParseAccessFunc: func(token string) (*tokens.Claims, error) {
+			return &tokens.Claims{
+				SessionID: testSessionID,
+				RegisteredClaims: jwt.RegisteredClaims{
+					Subject: "-42",
+				},
+			}, nil
+		},
+
+		ValidateTokenFunc: func(
+			ctx context.Context,
+			claims *tokens.Claims,
+		) (bool, error) {
+			return true, nil
+		},
+	}
+
+	svc := newService(mockTokens)
+
+	resp, err := svc.ValidateToken(
+		context.Background(),
+		&authv1.ValidateTokenRequest{
+			Token: "valid-token",
 		},
 	)
 
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 
-	assert.NotEmpty(t, resp.AccessToken)
-	assert.NotEmpty(t, resp.RefreshToken)
-
-	// Verify the new access token.
-	newAccessClaims, err := tokens.ParseAccess(resp.AccessToken)
-	require.NoError(t, err)
-
-	assert.Equal(t, testUserIdString, newAccessClaims.Subject)
-
-	// Verify the new refresh token.
-	newRefreshClaims, err := tokens.ParseRefresh(resp.RefreshToken)
-	require.NoError(t, err)
-
-	assert.Equal(t, testUserIdString, newRefreshClaims.Subject)
-
-	// A refresh should issue a new JTI.
-	assert.NotEqual(t, oldClaims.ID, newRefreshClaims.ID)
-}
-
-func TestRefreshToken_InvalidToken(t *testing.T) {
-	rdb, _ := mocks.NewTestRedis(t)
-	mockIdentityRepo := &mocks.MockIdentityRepository{}
-	svc := service.NewInternalIdentityService(mockIdentityRepo, rdb)
-
-	resp, err := svc.RefreshToken(
-		context.Background(),
-		&authv1.RefreshTokenRequest{
-			RefreshToken: "invalid-refresh-token",
-		},
-	)
-
-	assert.Nil(t, resp)
-	assert.ErrorIs(t, err, entities.ErrBadData)
-}
-
-func TestRefreshToken_TokenNotFoundInRedis(t *testing.T) {
-	rdb, _ := mocks.NewTestRedis(t)
-	mockIdentityRepo := &mocks.MockIdentityRepository{}
-	svc := service.NewInternalIdentityService(mockIdentityRepo, rdb)
-
-	tokenPair := issueTestTokens(t)
-
-	// Valid JWT, but refresh JTI isn't in Redis.
-	resp, err := svc.RefreshToken(
-		context.Background(),
-		&authv1.RefreshTokenRequest{
-			RefreshToken: tokenPair.Refresh,
-		},
-	)
-
-	assert.Nil(t, resp)
-	assert.ErrorIs(t, err, entities.ErrNotFound)
-}
-
-func TestRefreshToken_ExpiredRedisEntry(t *testing.T) {
-	rdb, mr := mocks.NewTestRedis(t)
-	mockIdentityRepo := &mocks.MockIdentityRepository{}
-	svc := service.NewInternalIdentityService(mockIdentityRepo, rdb)
-
-	tokenPair := issueTestTokens(t)
-
-	claims, err := tokens.ParseRefresh(tokenPair.Refresh)
-	require.NoError(t, err)
-
-	err = rdb.SetJTI(
-		context.Background(),
-		"refresh:"+claims.ID,
-		testUserIdString,
-		time.Now().Add(1*time.Minute),
-	)
-	require.NoError(t, err)
-
-	// Simulate Redis TTL expiration.
-	mr.FastForward(2 * time.Minute)
-
-	resp, err := svc.RefreshToken(
-		context.Background(),
-		&authv1.RefreshTokenRequest{
-			RefreshToken: tokenPair.Refresh,
-		},
-	)
-
-	assert.Nil(t, resp)
-	assert.ErrorIs(t, err, entities.ErrNotFound)
+	assert.Equal(t, int32(-42), resp.UserId)
 }

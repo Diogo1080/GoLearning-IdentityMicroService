@@ -21,7 +21,8 @@ import (
 
 func TestHandleDeleteUser_Success(t *testing.T) {
 	mockSvc := &mocks.MockPublicIdentityService{}
-	router := setupRouter(mockSvc)
+	tokenManager := &mocks.MockTokenManager{}
+	router := setupRouter(t, mockSvc, tokenManager)
 
 	called := false
 
@@ -38,6 +39,7 @@ func TestHandleDeleteUser_Success(t *testing.T) {
 	}
 
 	req := authenticatedRequest(
+		t,
 		http.MethodDelete,
 		"/users/42",
 		nil,
@@ -59,7 +61,8 @@ func TestHandleDeleteUser_Success(t *testing.T) {
 
 func TestHandleDeleteUser_NoToken(t *testing.T) {
 	mockSvc := &mocks.MockPublicIdentityService{}
-	router := setupRouter(mockSvc)
+	tokenManager := &mocks.MockTokenManager{}
+	router := setupRouter(t, mockSvc, tokenManager)
 
 	req := httptest.NewRequest(
 		http.MethodDelete,
@@ -76,9 +79,10 @@ func TestHandleDeleteUser_NoToken(t *testing.T) {
 
 func TestHandleDeleteUser_InvalidID(t *testing.T) {
 	mockSvc := &mocks.MockPublicIdentityService{}
-	router := setupRouter(mockSvc)
+	tokenManager := &mocks.MockTokenManager{}
+	router := setupRouter(t, mockSvc, tokenManager)
 
-	req := authenticatedRequest(
+	req := authenticatedRequest(t,
 		http.MethodDelete,
 		"/users/invalid",
 		nil,
@@ -94,7 +98,8 @@ func TestHandleDeleteUser_InvalidID(t *testing.T) {
 
 func TestHandleDeleteUser_IDMismatch(t *testing.T) {
 	mockSvc := &mocks.MockPublicIdentityService{}
-	router := setupRouter(mockSvc)
+	tokenManager := &mocks.MockTokenManager{}
+	router := setupRouter(t, mockSvc, tokenManager)
 
 	called := false
 
@@ -108,7 +113,7 @@ func TestHandleDeleteUser_IDMismatch(t *testing.T) {
 
 	// JWT user = 42
 	// URL user = 99
-	req := authenticatedRequest(
+	req := authenticatedRequest(t,
 		http.MethodDelete,
 		"/users/99",
 		nil,
@@ -125,7 +130,8 @@ func TestHandleDeleteUser_IDMismatch(t *testing.T) {
 
 func TestHandleDeleteUser_JWTUser99(t *testing.T) {
 	mockSvc := &mocks.MockPublicIdentityService{}
-	router := setupRouter(mockSvc)
+	tokenManager := &mocks.MockTokenManager{}
+	router := setupRouter(t, mockSvc, tokenManager)
 
 	mockSvc.DeleteUserFunc = func(
 		ctx context.Context,
@@ -138,7 +144,7 @@ func TestHandleDeleteUser_JWTUser99(t *testing.T) {
 		}, nil
 	}
 
-	req := authenticatedRequest(
+	req := authenticatedRequest(t,
 		http.MethodDelete,
 		"/users/99",
 		nil,
@@ -154,7 +160,8 @@ func TestHandleDeleteUser_JWTUser99(t *testing.T) {
 
 func TestHandleDeleteUser_NotFound(t *testing.T) {
 	mockSvc := &mocks.MockPublicIdentityService{}
-	router := setupRouter(mockSvc)
+	tokenManager := &mocks.MockTokenManager{}
+	router := setupRouter(t, mockSvc, tokenManager)
 
 	mockSvc.DeleteUserFunc = func(
 		ctx context.Context,
@@ -163,7 +170,7 @@ func TestHandleDeleteUser_NotFound(t *testing.T) {
 		return nil, entities.ErrNotFound
 	}
 
-	req := authenticatedRequest(
+	req := authenticatedRequest(t,
 		http.MethodDelete,
 		"/users/42",
 		nil,
@@ -179,7 +186,8 @@ func TestHandleDeleteUser_NotFound(t *testing.T) {
 
 func TestHandleDeleteUser_ServiceError(t *testing.T) {
 	mockSvc := &mocks.MockPublicIdentityService{}
-	router := setupRouter(mockSvc)
+	tokenManager := &mocks.MockTokenManager{}
+	router := setupRouter(t, mockSvc, tokenManager)
 
 	mockSvc.DeleteUserFunc = func(
 		ctx context.Context,
@@ -188,7 +196,7 @@ func TestHandleDeleteUser_ServiceError(t *testing.T) {
 		return nil, errors.New("database unavailable")
 	}
 
-	req := authenticatedRequest(
+	req := authenticatedRequest(t,
 		http.MethodDelete,
 		"/users/42",
 		nil,

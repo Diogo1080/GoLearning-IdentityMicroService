@@ -8,7 +8,6 @@ package v1
 
 import (
 	context "context"
-
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -21,14 +20,16 @@ const _ = grpc.SupportPackageIsVersion9
 
 const (
 	PublicIdentityService_Register_FullMethodName          = "/auth.v1.PublicIdentityService/Register"
-	PublicIdentityService_Login_FullMethodName             = "/auth.v1.PublicIdentityService/Login"
 	PublicIdentityService_GetUserByID_FullMethodName       = "/auth.v1.PublicIdentityService/GetUserByID"
 	PublicIdentityService_GetUserByEmail_FullMethodName    = "/auth.v1.PublicIdentityService/GetUserByEmail"
 	PublicIdentityService_GetUserByUsername_FullMethodName = "/auth.v1.PublicIdentityService/GetUserByUsername"
 	PublicIdentityService_UpdateUser_FullMethodName        = "/auth.v1.PublicIdentityService/UpdateUser"
 	PublicIdentityService_DeleteUser_FullMethodName        = "/auth.v1.PublicIdentityService/DeleteUser"
 	PublicIdentityService_ChangePassword_FullMethodName    = "/auth.v1.PublicIdentityService/ChangePassword"
+	PublicIdentityService_Login_FullMethodName             = "/auth.v1.PublicIdentityService/Login"
+	PublicIdentityService_RefreshLogin_FullMethodName      = "/auth.v1.PublicIdentityService/RefreshLogin"
 	PublicIdentityService_Logout_FullMethodName            = "/auth.v1.PublicIdentityService/Logout"
+	PublicIdentityService_LogoutAll_FullMethodName         = "/auth.v1.PublicIdentityService/LogoutAll"
 )
 
 // PublicIdentityServiceClient is the client API for PublicIdentityService service.
@@ -36,14 +37,16 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type PublicIdentityServiceClient interface {
 	Register(ctx context.Context, in *RegisterRequest, opts ...grpc.CallOption) (*RegisterResponse, error)
-	Login(ctx context.Context, in *LoginRequest, opts ...grpc.CallOption) (*LoginResponse, error)
 	GetUserByID(ctx context.Context, in *GetUserRequest, opts ...grpc.CallOption) (*GetUserResponse, error)
 	GetUserByEmail(ctx context.Context, in *GetUserRequest, opts ...grpc.CallOption) (*GetUserResponse, error)
 	GetUserByUsername(ctx context.Context, in *GetUserRequest, opts ...grpc.CallOption) (*GetUserResponse, error)
 	UpdateUser(ctx context.Context, in *UpdateUserRequest, opts ...grpc.CallOption) (*UpdateUserResponse, error)
 	DeleteUser(ctx context.Context, in *DeleteUserRequest, opts ...grpc.CallOption) (*DeleteUserResponse, error)
 	ChangePassword(ctx context.Context, in *ChangePasswordRequest, opts ...grpc.CallOption) (*ChangePasswordResponse, error)
+	Login(ctx context.Context, in *LoginRequest, opts ...grpc.CallOption) (*LoginResponse, error)
+	RefreshLogin(ctx context.Context, in *RefreshLoginRequest, opts ...grpc.CallOption) (*LoginResponse, error)
 	Logout(ctx context.Context, in *LogoutRequest, opts ...grpc.CallOption) (*LogoutResponse, error)
+	LogoutAll(ctx context.Context, in *LogoutAllRequest, opts ...grpc.CallOption) (*LogoutResponse, error)
 }
 
 type publicIdentityServiceClient struct {
@@ -58,16 +61,6 @@ func (c *publicIdentityServiceClient) Register(ctx context.Context, in *Register
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(RegisterResponse)
 	err := c.cc.Invoke(ctx, PublicIdentityService_Register_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *publicIdentityServiceClient) Login(ctx context.Context, in *LoginRequest, opts ...grpc.CallOption) (*LoginResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(LoginResponse)
-	err := c.cc.Invoke(ctx, PublicIdentityService_Login_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -134,10 +127,40 @@ func (c *publicIdentityServiceClient) ChangePassword(ctx context.Context, in *Ch
 	return out, nil
 }
 
+func (c *publicIdentityServiceClient) Login(ctx context.Context, in *LoginRequest, opts ...grpc.CallOption) (*LoginResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(LoginResponse)
+	err := c.cc.Invoke(ctx, PublicIdentityService_Login_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *publicIdentityServiceClient) RefreshLogin(ctx context.Context, in *RefreshLoginRequest, opts ...grpc.CallOption) (*LoginResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(LoginResponse)
+	err := c.cc.Invoke(ctx, PublicIdentityService_RefreshLogin_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *publicIdentityServiceClient) Logout(ctx context.Context, in *LogoutRequest, opts ...grpc.CallOption) (*LogoutResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(LogoutResponse)
 	err := c.cc.Invoke(ctx, PublicIdentityService_Logout_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *publicIdentityServiceClient) LogoutAll(ctx context.Context, in *LogoutAllRequest, opts ...grpc.CallOption) (*LogoutResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(LogoutResponse)
+	err := c.cc.Invoke(ctx, PublicIdentityService_LogoutAll_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -149,14 +172,16 @@ func (c *publicIdentityServiceClient) Logout(ctx context.Context, in *LogoutRequ
 // for forward compatibility.
 type PublicIdentityServiceServer interface {
 	Register(context.Context, *RegisterRequest) (*RegisterResponse, error)
-	Login(context.Context, *LoginRequest) (*LoginResponse, error)
 	GetUserByID(context.Context, *GetUserRequest) (*GetUserResponse, error)
 	GetUserByEmail(context.Context, *GetUserRequest) (*GetUserResponse, error)
 	GetUserByUsername(context.Context, *GetUserRequest) (*GetUserResponse, error)
 	UpdateUser(context.Context, *UpdateUserRequest) (*UpdateUserResponse, error)
 	DeleteUser(context.Context, *DeleteUserRequest) (*DeleteUserResponse, error)
 	ChangePassword(context.Context, *ChangePasswordRequest) (*ChangePasswordResponse, error)
+	Login(context.Context, *LoginRequest) (*LoginResponse, error)
+	RefreshLogin(context.Context, *RefreshLoginRequest) (*LoginResponse, error)
 	Logout(context.Context, *LogoutRequest) (*LogoutResponse, error)
+	LogoutAll(context.Context, *LogoutAllRequest) (*LogoutResponse, error)
 	mustEmbedUnimplementedPublicIdentityServiceServer()
 }
 
@@ -169,9 +194,6 @@ type UnimplementedPublicIdentityServiceServer struct{}
 
 func (UnimplementedPublicIdentityServiceServer) Register(context.Context, *RegisterRequest) (*RegisterResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Register not implemented")
-}
-func (UnimplementedPublicIdentityServiceServer) Login(context.Context, *LoginRequest) (*LoginResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method Login not implemented")
 }
 func (UnimplementedPublicIdentityServiceServer) GetUserByID(context.Context, *GetUserRequest) (*GetUserResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetUserByID not implemented")
@@ -191,8 +213,17 @@ func (UnimplementedPublicIdentityServiceServer) DeleteUser(context.Context, *Del
 func (UnimplementedPublicIdentityServiceServer) ChangePassword(context.Context, *ChangePasswordRequest) (*ChangePasswordResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ChangePassword not implemented")
 }
+func (UnimplementedPublicIdentityServiceServer) Login(context.Context, *LoginRequest) (*LoginResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Login not implemented")
+}
+func (UnimplementedPublicIdentityServiceServer) RefreshLogin(context.Context, *RefreshLoginRequest) (*LoginResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RefreshLogin not implemented")
+}
 func (UnimplementedPublicIdentityServiceServer) Logout(context.Context, *LogoutRequest) (*LogoutResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Logout not implemented")
+}
+func (UnimplementedPublicIdentityServiceServer) LogoutAll(context.Context, *LogoutAllRequest) (*LogoutResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method LogoutAll not implemented")
 }
 func (UnimplementedPublicIdentityServiceServer) mustEmbedUnimplementedPublicIdentityServiceServer() {}
 func (UnimplementedPublicIdentityServiceServer) testEmbeddedByValue()                               {}
@@ -229,24 +260,6 @@ func _PublicIdentityService_Register_Handler(srv interface{}, ctx context.Contex
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(PublicIdentityServiceServer).Register(ctx, req.(*RegisterRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _PublicIdentityService_Login_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(LoginRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(PublicIdentityServiceServer).Login(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: PublicIdentityService_Login_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(PublicIdentityServiceServer).Login(ctx, req.(*LoginRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -359,6 +372,42 @@ func _PublicIdentityService_ChangePassword_Handler(srv interface{}, ctx context.
 	return interceptor(ctx, in, info, handler)
 }
 
+func _PublicIdentityService_Login_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(LoginRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PublicIdentityServiceServer).Login(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PublicIdentityService_Login_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PublicIdentityServiceServer).Login(ctx, req.(*LoginRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PublicIdentityService_RefreshLogin_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RefreshLoginRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PublicIdentityServiceServer).RefreshLogin(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PublicIdentityService_RefreshLogin_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PublicIdentityServiceServer).RefreshLogin(ctx, req.(*RefreshLoginRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _PublicIdentityService_Logout_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(LogoutRequest)
 	if err := dec(in); err != nil {
@@ -377,6 +426,24 @@ func _PublicIdentityService_Logout_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
+func _PublicIdentityService_LogoutAll_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(LogoutAllRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PublicIdentityServiceServer).LogoutAll(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PublicIdentityService_LogoutAll_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PublicIdentityServiceServer).LogoutAll(ctx, req.(*LogoutAllRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // PublicIdentityService_ServiceDesc is the grpc.ServiceDesc for PublicIdentityService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -387,10 +454,6 @@ var PublicIdentityService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Register",
 			Handler:    _PublicIdentityService_Register_Handler,
-		},
-		{
-			MethodName: "Login",
-			Handler:    _PublicIdentityService_Login_Handler,
 		},
 		{
 			MethodName: "GetUserByID",
@@ -417,8 +480,20 @@ var PublicIdentityService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _PublicIdentityService_ChangePassword_Handler,
 		},
 		{
+			MethodName: "Login",
+			Handler:    _PublicIdentityService_Login_Handler,
+		},
+		{
+			MethodName: "RefreshLogin",
+			Handler:    _PublicIdentityService_RefreshLogin_Handler,
+		},
+		{
 			MethodName: "Logout",
 			Handler:    _PublicIdentityService_Logout_Handler,
+		},
+		{
+			MethodName: "LogoutAll",
+			Handler:    _PublicIdentityService_LogoutAll_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
@@ -426,7 +501,6 @@ var PublicIdentityService_ServiceDesc = grpc.ServiceDesc{
 }
 
 const (
-	InternalIdentityService_RefreshToken_FullMethodName  = "/auth.v1.InternalIdentityService/RefreshToken"
 	InternalIdentityService_ValidateToken_FullMethodName = "/auth.v1.InternalIdentityService/ValidateToken"
 )
 
@@ -434,7 +508,6 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type InternalIdentityServiceClient interface {
-	RefreshToken(ctx context.Context, in *RefreshTokenRequest, opts ...grpc.CallOption) (*RefreshTokenResponse, error)
 	ValidateToken(ctx context.Context, in *ValidateTokenRequest, opts ...grpc.CallOption) (*ValidateTokenResponse, error)
 }
 
@@ -444,16 +517,6 @@ type internalIdentityServiceClient struct {
 
 func NewInternalIdentityServiceClient(cc grpc.ClientConnInterface) InternalIdentityServiceClient {
 	return &internalIdentityServiceClient{cc}
-}
-
-func (c *internalIdentityServiceClient) RefreshToken(ctx context.Context, in *RefreshTokenRequest, opts ...grpc.CallOption) (*RefreshTokenResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(RefreshTokenResponse)
-	err := c.cc.Invoke(ctx, InternalIdentityService_RefreshToken_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
 }
 
 func (c *internalIdentityServiceClient) ValidateToken(ctx context.Context, in *ValidateTokenRequest, opts ...grpc.CallOption) (*ValidateTokenResponse, error) {
@@ -470,7 +533,6 @@ func (c *internalIdentityServiceClient) ValidateToken(ctx context.Context, in *V
 // All implementations must embed UnimplementedInternalIdentityServiceServer
 // for forward compatibility.
 type InternalIdentityServiceServer interface {
-	RefreshToken(context.Context, *RefreshTokenRequest) (*RefreshTokenResponse, error)
 	ValidateToken(context.Context, *ValidateTokenRequest) (*ValidateTokenResponse, error)
 	mustEmbedUnimplementedInternalIdentityServiceServer()
 }
@@ -482,9 +544,6 @@ type InternalIdentityServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedInternalIdentityServiceServer struct{}
 
-func (UnimplementedInternalIdentityServiceServer) RefreshToken(context.Context, *RefreshTokenRequest) (*RefreshTokenResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method RefreshToken not implemented")
-}
 func (UnimplementedInternalIdentityServiceServer) ValidateToken(context.Context, *ValidateTokenRequest) (*ValidateTokenResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ValidateToken not implemented")
 }
@@ -508,24 +567,6 @@ func RegisterInternalIdentityServiceServer(s grpc.ServiceRegistrar, srv Internal
 		t.testEmbeddedByValue()
 	}
 	s.RegisterService(&InternalIdentityService_ServiceDesc, srv)
-}
-
-func _InternalIdentityService_RefreshToken_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(RefreshTokenRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(InternalIdentityServiceServer).RefreshToken(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: InternalIdentityService_RefreshToken_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(InternalIdentityServiceServer).RefreshToken(ctx, req.(*RefreshTokenRequest))
-	}
-	return interceptor(ctx, in, info, handler)
 }
 
 func _InternalIdentityService_ValidateToken_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -553,10 +594,6 @@ var InternalIdentityService_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "auth.v1.InternalIdentityService",
 	HandlerType: (*InternalIdentityServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
-		{
-			MethodName: "RefreshToken",
-			Handler:    _InternalIdentityService_RefreshToken_Handler,
-		},
 		{
 			MethodName: "ValidateToken",
 			Handler:    _InternalIdentityService_ValidateToken_Handler,

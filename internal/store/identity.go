@@ -89,7 +89,7 @@ func (r *SQLiteIdentityRepository) UpdateUser(id int, userInfo entities.User) er
 
 	if err != nil {
 		r.logger.Error("failed to update user", "user", userInfo.ToUserDTO(), "error", err)
-		return err
+		return entities.ErrConflict
 	}
 
 	rowsAffected, err := result.RowsAffected()

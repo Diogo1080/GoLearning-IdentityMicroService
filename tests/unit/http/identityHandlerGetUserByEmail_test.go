@@ -19,7 +19,8 @@ import (
 
 func TestHandleGetUserByEmail_Success(t *testing.T) {
 	mockSvc := &mocks.MockPublicIdentityService{}
-	router := setupRouter(mockSvc)
+	tokenManager := &mocks.MockTokenManager{}
+	router := setupRouter(t, mockSvc, tokenManager)
 
 	mockSvc.GetUserByEmailFunc = func(
 		ctx context.Context,
@@ -34,7 +35,7 @@ func TestHandleGetUserByEmail_Success(t *testing.T) {
 		}, nil
 	}
 
-	req := authenticatedRequest(
+	req := authenticatedRequest(t,
 		http.MethodGet,
 		"/users/email/john@example.com",
 		nil,
@@ -45,12 +46,13 @@ func TestHandleGetUserByEmail_Success(t *testing.T) {
 
 	router.ServeHTTP(w, req)
 
-	assert.Equal(t, http.StatusFound, w.Code)
+	assert.Equal(t, http.StatusOK, w.Code)
 }
 
 func TestHandleGetUserByEmail_NoToken(t *testing.T) {
 	mockSvc := &mocks.MockPublicIdentityService{}
-	router := setupRouter(mockSvc)
+	tokenManager := &mocks.MockTokenManager{}
+	router := setupRouter(t, mockSvc, tokenManager)
 
 	req := httptest.NewRequest(
 		http.MethodGet,
@@ -67,9 +69,10 @@ func TestHandleGetUserByEmail_NoToken(t *testing.T) {
 
 func TestHandleGetUserByEmail_InvalidEmail(t *testing.T) {
 	mockSvc := &mocks.MockPublicIdentityService{}
-	router := setupRouter(mockSvc)
+	tokenManager := &mocks.MockTokenManager{}
+	router := setupRouter(t, mockSvc, tokenManager)
 
-	req := authenticatedRequest(
+	req := authenticatedRequest(t,
 		http.MethodGet,
 		"/users/email/not-an-email",
 		nil,
@@ -85,7 +88,8 @@ func TestHandleGetUserByEmail_InvalidEmail(t *testing.T) {
 
 func TestHandleGetUserByEmail_OtherUser(t *testing.T) {
 	mockSvc := &mocks.MockPublicIdentityService{}
-	router := setupRouter(mockSvc)
+	tokenManager := &mocks.MockTokenManager{}
+	router := setupRouter(t, mockSvc, tokenManager)
 
 	mockSvc.GetUserByEmailFunc = func(
 		ctx context.Context,
@@ -98,7 +102,7 @@ func TestHandleGetUserByEmail_OtherUser(t *testing.T) {
 		}, nil
 	}
 
-	req := authenticatedRequest(
+	req := authenticatedRequest(t,
 		http.MethodGet,
 		"/users/email/other@example.com",
 		nil,
@@ -114,7 +118,8 @@ func TestHandleGetUserByEmail_OtherUser(t *testing.T) {
 
 func TestHandleGetUserByEmail_NotFound(t *testing.T) {
 	mockSvc := &mocks.MockPublicIdentityService{}
-	router := setupRouter(mockSvc)
+	tokenManager := &mocks.MockTokenManager{}
+	router := setupRouter(t, mockSvc, tokenManager)
 
 	mockSvc.GetUserByEmailFunc = func(
 		ctx context.Context,
@@ -123,7 +128,7 @@ func TestHandleGetUserByEmail_NotFound(t *testing.T) {
 		return nil, entities.ErrNotFound
 	}
 
-	req := authenticatedRequest(
+	req := authenticatedRequest(t,
 		http.MethodGet,
 		"/users/email/john@example.com",
 		nil,
@@ -139,7 +144,8 @@ func TestHandleGetUserByEmail_NotFound(t *testing.T) {
 
 func TestHandleGetUserByEmail_ServiceError(t *testing.T) {
 	mockSvc := &mocks.MockPublicIdentityService{}
-	router := setupRouter(mockSvc)
+	tokenManager := &mocks.MockTokenManager{}
+	router := setupRouter(t, mockSvc, tokenManager)
 
 	mockSvc.GetUserByEmailFunc = func(
 		ctx context.Context,
@@ -148,7 +154,7 @@ func TestHandleGetUserByEmail_ServiceError(t *testing.T) {
 		return nil, errors.New("database unavailable")
 	}
 
-	req := authenticatedRequest(
+	req := authenticatedRequest(t,
 		http.MethodGet,
 		"/users/email/john@example.com",
 		nil,
