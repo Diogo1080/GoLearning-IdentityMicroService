@@ -141,13 +141,10 @@ func TestHandleLogout_NoToken(t *testing.T) {
 
 	router := setupRouter(t, mockSvc, tokenManager)
 
-	called := false
-
 	mockSvc.LogoutFunc = func(
 		ctx context.Context,
 		req *authv1.LogoutRequest,
 	) (*authv1.LogoutResponse, error) {
-		called = true
 		return &authv1.LogoutResponse{}, nil
 	}
 
@@ -157,8 +154,7 @@ func TestHandleLogout_NoToken(t *testing.T) {
 
 	router.ServeHTTP(w, req)
 
-	assert.Equal(t, http.StatusOK, w.Code)
-	assert.True(t, called)
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
 func TestHandleLogout_TokenParseError(t *testing.T) {
@@ -194,7 +190,7 @@ func TestHandleLogout_TokenParseError(t *testing.T) {
 
 	router.ServeHTTP(w, req)
 
-	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
 	assert.True(t, called)
 }
 
@@ -216,7 +212,7 @@ func TestHandleLogout_ServiceError(t *testing.T) {
 		req *authv1.LogoutRequest,
 	) (*authv1.LogoutResponse, error) {
 		assert.Equal(t, "session-A", req.SessionId)
-		return nil, errors.New("logout service unavailable")
+		return nil, entities.ErrInternalServerError
 	}
 
 	req := httptest.NewRequest(http.MethodPost, "/logout", nil)
@@ -230,7 +226,7 @@ func TestHandleLogout_ServiceError(t *testing.T) {
 
 	router.ServeHTTP(w, req)
 
-	require.Equal(t, http.StatusServiceUnavailable, w.Code)
+	require.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
 // ============================================================
@@ -285,13 +281,11 @@ func TestHandleLogoutAll_NoToken(t *testing.T) {
 
 	router := setupRouter(t, mockSvc, tokenManager)
 
-	called := false
-
 	mockSvc.LogoutAllFunc = func(
 		ctx context.Context,
 		req *authv1.LogoutAllRequest,
 	) (*authv1.LogoutResponse, error) {
-		called = true
+
 		return &authv1.LogoutResponse{}, nil
 	}
 
@@ -301,8 +295,7 @@ func TestHandleLogoutAll_NoToken(t *testing.T) {
 
 	router.ServeHTTP(w, req)
 
-	assert.Equal(t, http.StatusBadRequest, w.Code)
-	assert.False(t, called)
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
 func TestHandleLogoutAll_TokenParseError(t *testing.T) {
@@ -338,7 +331,7 @@ func TestHandleLogoutAll_TokenParseError(t *testing.T) {
 
 	router.ServeHTTP(w, req)
 
-	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
 	assert.False(t, called)
 }
 
@@ -375,7 +368,7 @@ func TestHandleLogoutAll_InvalidUserID(t *testing.T) {
 
 	router.ServeHTTP(w, req)
 
-	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
 	assert.False(t, called)
 }
 

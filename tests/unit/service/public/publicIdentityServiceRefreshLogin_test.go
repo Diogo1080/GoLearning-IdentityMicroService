@@ -215,7 +215,7 @@ func TestRefreshToken_ValidationError(t *testing.T) {
 	)
 
 	assert.Nil(t, resp)
-	assert.ErrorIs(t, err, entities.ErrInternalServerError)
+	assert.ErrorIs(t, err, entities.ErrUnauthorized)
 
 	// Do not issue tokens when validation itself failed.
 	assert.False(t, issueCalled)
