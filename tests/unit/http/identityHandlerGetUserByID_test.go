@@ -177,3 +177,30 @@ func TestHandleGetUserByID_ServiceError(t *testing.T) {
 
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }
+
+func TestHandleGetCurrentUser_UsesAuthenticatedUserID(t *testing.T) {
+	mockSvc := &mocks.MockPublicIdentityService{}
+	tokenManager := &mocks.MockTokenManager{}
+	router := setupRouter(t, mockSvc, tokenManager)
+
+	mockSvc.GetUserByIDFunc = func(
+		ctx context.Context,
+		req *authv1.GetUserRequest,
+	) (*authv1.GetUserResponse, error) {
+		assert.Equal(t, int32(42), req.Id)
+
+		return &authv1.GetUserResponse{Id: 42, Username: "john"}, nil
+	}
+
+	req := authenticatedRequest(t,
+		http.MethodGet,
+		"/users/me",
+		nil,
+		"valid_jwt_token",
+	)
+
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+}

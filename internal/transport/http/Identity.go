@@ -1,13 +1,12 @@
 package http
 
 import (
-	"fmt"
 	"log/slog"
 	"strconv"
 
 	authv1 "github.com/Diogo1080/GoLearning-IdentityMicroService/api/v1"
 	"github.com/Diogo1080/GoLearning-IdentityMicroService/internal/domain"
-	"github.com/Diogo1080/GoLearning-IdentityMicroService/internal/logger"
+	"github.com/Diogo1080/GoLearning-IdentityMicroService/internal/transport/http/middleware/logger"
 	"github.com/Diogo1080/GoLearning-IdentityMicroService/internal/validation"
 
 	"context"
@@ -41,15 +40,20 @@ type identityServicePort interface {
 type IdentityHandler struct {
 	identityService identityServicePort
 	tokens          TokenManagerPort
-	logger          *slog.Logger
 }
 
 func NewIdentityHandler(identityService identityServicePort, tokens TokenManagerPort) *IdentityHandler {
-	return &IdentityHandler{identityService: identityService, tokens: tokens, logger: logger.New().WithGroup("IdentityHandler")}
+	return &IdentityHandler{identityService: identityService, tokens: tokens}
+}
+
+func handlerLogger(ctx *gin.Context) *slog.Logger {
+	return logger.GetLoggerFromContext(ctx.Request.Context()).With("component", "IdentityHandler")
 }
 
 // HTTP acepted and no jwt required
-func (h *IdentityHandler) HandleRegister(c *gin.Context) {
+func (h *IdentityHandler) HandleRegister(ctx *gin.Context) {
+	log := handlerLogger(ctx).With("operation", "register")
+	log.Info("register request received")
 	type RegisterInput struct {
 		Username  string `json:"username" binding:"required,min=3,max=50"`
 		Password  string `json:"password" binding:"required,min=6"`
@@ -59,20 +63,22 @@ func (h *IdentityHandler) HandleRegister(c *gin.Context) {
 
 	var input RegisterInput
 
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, domain.ErrBadRequest)
+	if err := ctx.ShouldBindJSON(&input); err != nil {
+		log.Warn("register request binding failed", "err", err)
+		ctx.JSON(http.StatusBadRequest, domain.ErrBadRequest)
 		return
 	}
 
 	if err := validation.ValidateRegisterRequest(input.Username, input.Email, input.Password, input.Birthdate); err != nil {
-		c.JSON(http.StatusBadRequest, domain.ErrBadRequest)
+		log.Warn("register request validation failed", "err", err)
+		ctx.JSON(http.StatusBadRequest, domain.ErrBadRequest)
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	c, cancel := context.WithTimeout(ctx.Request.Context(), 5*time.Second)
 	defer cancel()
 
-	resp, err := h.identityService.Register(ctx, &authv1.RegisterRequest{
+	resp, err := h.identityService.Register(c, &authv1.RegisterRequest{
 		Username:  input.Username,
 		Password:  input.Password,
 		Email:     input.Email,
@@ -80,205 +86,239 @@ func (h *IdentityHandler) HandleRegister(c *gin.Context) {
 	})
 
 	if err != nil || !resp.Success {
-		c.JSON(mapDomainError(err))
+		log.Warn("register service failed", "err", err)
+		ctx.JSON(mapDomainError(err))
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{
+	ctx.JSON(http.StatusCreated, gin.H{
 		"message": "user registered successfully",
 		"user_id": resp.UserId,
 	})
+	log.Info("register request completed", "user_id", resp.UserId)
 }
 
-func (h *IdentityHandler) HandleLogin(c *gin.Context) {
+func (h *IdentityHandler) HandleLogin(ctx *gin.Context) {
+	log := handlerLogger(ctx).With("operation", "login")
+	log.Info("login request received")
 	type LoginRequest struct {
 		Usernameoremail string `json:"usernameoremail" binding:"required"`
 		Password        string `json:"password" binding:"required"`
 	}
 
 	var input LoginRequest
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, domain.ErrBadRequest)
+	if err := ctx.ShouldBindJSON(&input); err != nil {
+		log.Warn("login request binding failed", "err", err)
+		ctx.JSON(http.StatusBadRequest, domain.ErrBadRequest)
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	c, cancel := context.WithTimeout(ctx.Request.Context(), 5*time.Second)
 	defer cancel()
 
-	resp, err := h.identityService.Login(ctx, &authv1.LoginRequest{
+	resp, err := h.identityService.Login(c, &authv1.LoginRequest{
 		Usernameoremail: input.Usernameoremail,
 		Password:        input.Password,
 	})
 
 	if err != nil {
-		c.JSON(mapDomainError(err))
+		log.Warn("login service failed", "err", err)
+		ctx.JSON(mapDomainError(err))
 		return
 	}
 
 	if resp == nil {
-		c.JSON(http.StatusUnauthorized, domain.ErrUnauthorized)
+		log.Warn("login returned no response")
+		ctx.JSON(http.StatusUnauthorized, domain.ErrUnauthorized)
 		return
 	}
 
 	// Set cookies for browser clients
-	h.setAuthCookies(c, resp.AccessToken, resp.RefreshToken)
+	h.setAuthCookies(ctx, resp.AccessToken, resp.RefreshToken)
 
-	c.JSON(http.StatusOK, gin.H{
+	ctx.JSON(http.StatusOK, gin.H{
 		"access_token":  resp.AccessToken,
 		"refresh_token": resp.RefreshToken,
 		"user_id":       resp.UserId,
 		"message":       resp.Message,
 	})
+	log.Info("login request completed", "user_id", resp.UserId)
 }
 
-func (h *IdentityHandler) HandleRefreshLogin(c *gin.Context) {
-	refresh := refreshFromHeader(c)
+func (h *IdentityHandler) HandleRefreshLogin(ctx *gin.Context) {
+	log := handlerLogger(ctx).With("operation", "refresh_login")
+	log.Info("refresh login request received")
+	refresh := refreshFromHeader(ctx)
 
 	if refresh == "" {
-		refresh = refreshFromCookie(c)
+		log.Warn("refresh login request missing token")
+		refresh = refreshFromCookie(ctx)
 	}
 
 	if refresh == "" {
-		c.JSON(http.StatusUnauthorized, domain.ErrUnauthorized)
+		ctx.JSON(http.StatusUnauthorized, domain.ErrUnauthorized)
 		return
 	}
 
-	fmt.Print(refresh)
-
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	c, cancel := context.WithTimeout(ctx.Request.Context(), 5*time.Second)
 	defer cancel()
 
-	resp, err := h.identityService.RefreshLogin(ctx, &authv1.RefreshLoginRequest{
+	resp, err := h.identityService.RefreshLogin(c, &authv1.RefreshLoginRequest{
 		RefreshToken: refresh,
 	})
 
-	fmt.Print(err)
-	fmt.Print(resp)
-
 	if err != nil {
-		c.JSON(mapDomainError(err))
+		log.Warn("refresh login service failed", "err", err)
+		ctx.JSON(mapDomainError(err))
 		return
 	}
 
 	if resp == nil {
-		c.JSON(http.StatusUnauthorized, domain.ErrUnauthorized)
+		log.Warn("refresh login returned no response")
+		ctx.JSON(http.StatusUnauthorized, domain.ErrUnauthorized)
 		return
 	}
 
 	// Set cookies for browser clients
-	h.setAuthCookies(c, resp.AccessToken, resp.RefreshToken)
+	h.setAuthCookies(ctx, resp.AccessToken, resp.RefreshToken)
 
-	c.JSON(http.StatusOK, gin.H{
+	ctx.JSON(http.StatusOK, gin.H{
 		"access_token":  resp.AccessToken,
 		"refresh_token": resp.RefreshToken,
 		"user_id":       resp.UserId,
 		"message":       resp.Message,
 	})
+	log.Info("refresh login request completed", "user_id", resp.UserId)
 }
 
-func (h *IdentityHandler) HandleGetUserByEmail(c *gin.Context) {
-	authID, ok := getUserID(c)
+func (h *IdentityHandler) HandleGetUserByEmail(ctx *gin.Context) {
+	authID, ok := getUserID(ctx)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, domain.ErrUnauthorized)
+		ctx.JSON(http.StatusUnauthorized, domain.ErrUnauthorized)
 		return
 	}
 
-	email := c.Param("email")
+	email := ctx.Param("email")
 	if err := validation.ValidateEmail(email); err != nil {
-		c.JSON(http.StatusBadRequest, domain.ErrBadRequest)
+		ctx.JSON(http.StatusBadRequest, domain.ErrBadRequest)
 		return
 	}
 
-	user, err := h.identityService.GetUserByEmail(c, &authv1.GetUserRequest{Email: email})
+	user, err := h.identityService.GetUserByEmail(ctx, &authv1.GetUserRequest{Email: email})
 	if err != nil {
-		c.JSON(mapDomainError(err))
+		ctx.JSON(mapDomainError(err))
 		return
 	}
 
 	if int(user.Id) != authID {
-		c.JSON(http.StatusForbidden, domain.ErrUnauthorized)
+		ctx.JSON(http.StatusForbidden, domain.ErrUnauthorized)
 		return
 	}
 
-	c.JSON(http.StatusOK, user)
+	ctx.JSON(http.StatusOK, user)
 }
 
-func (h *IdentityHandler) HandleGetUserByUsername(c *gin.Context) {
-	authID, ok := getUserID(c)
+func (h *IdentityHandler) HandleGetUserByUsername(ctx *gin.Context) {
+	authID, ok := getUserID(ctx)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, domain.ErrUnauthorized)
+		ctx.JSON(http.StatusUnauthorized, domain.ErrUnauthorized)
 		return
 	}
 
-	username := c.Param("username")
+	username := ctx.Param("username")
 
 	if err := validation.ValidateUsername(username); err != nil {
-		c.JSON(http.StatusBadRequest, domain.ErrBadRequest)
+		ctx.JSON(http.StatusBadRequest, domain.ErrBadRequest)
 		return
 	}
 
-	user, err := h.identityService.GetUserByUsername(c, &authv1.GetUserRequest{Username: username})
+	user, err := h.identityService.GetUserByUsername(ctx, &authv1.GetUserRequest{Username: username})
 	if err != nil {
-		c.JSON(mapDomainError(err))
+		ctx.JSON(mapDomainError(err))
 		return
 	}
 
 	if int(user.Id) != authID {
-		c.JSON(http.StatusForbidden, domain.ErrUnauthorized)
+		ctx.JSON(http.StatusForbidden, domain.ErrUnauthorized)
 		return
 	}
 
-	c.JSON(http.StatusOK, user)
+	ctx.JSON(http.StatusOK, user)
 }
 
-func (h *IdentityHandler) HandleGetUserByID(c *gin.Context) {
-	h.logger.Info("Routing to service getUserId")
-	authID, ok := getUserID(c)
+func (h *IdentityHandler) HandleGetUserByID(ctx *gin.Context) {
+	log := handlerLogger(ctx).With("operation", "get_user_by_id")
+
+	log.Debug("user lookup request received")
+	authID, ok := getUserID(ctx)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, domain.ErrUnauthorized)
+		ctx.JSON(http.StatusUnauthorized, domain.ErrUnauthorized)
 		return
 	}
 
-	id := c.Param("id")
+	id := ctx.Param("id")
 
 	if validation.ValidateId(id) {
-		c.JSON(http.StatusBadRequest, domain.ErrBadRequest)
+		ctx.JSON(http.StatusBadRequest, domain.ErrBadRequest)
 		return
 	}
 
 	i, _ := strconv.Atoi(id)
 
 	if i != authID {
-		c.JSON(http.StatusForbidden, domain.ErrUnauthorized)
+		ctx.JSON(http.StatusForbidden, domain.ErrUnauthorized)
 		return
 	}
 
-	user, err := h.identityService.GetUserByID(c, &authv1.GetUserRequest{Id: int32(authID)})
+	user, err := h.identityService.GetUserByID(ctx, &authv1.GetUserRequest{Id: int32(authID)})
 	if err != nil {
-		c.JSON(mapDomainError(err))
+		ctx.JSON(mapDomainError(err))
 		return
 	}
 
-	h.logger.Info("Responding")
-	c.JSON(http.StatusOK, user)
+	log.Debug("user lookup request completed", "user_id", authID)
+	ctx.JSON(http.StatusOK, user)
+}
+
+func (h *IdentityHandler) HandleGetCurrentUser(ctx *gin.Context) {
+	log := handlerLogger(ctx).With("operation", "get_current_user")
+	log.Debug("current user request received")
+	authID, ok := getUserID(ctx)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, domain.ErrUnauthorized)
+		return
+	}
+
+	user, err := h.identityService.GetUserByID(ctx, &authv1.GetUserRequest{Id: int32(authID)})
+	if err != nil {
+		log.Warn("current user lookup failed", "user_id", authID, "err", err)
+		ctx.JSON(mapDomainError(err))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, user)
+	log.Debug("current user request completed", "user_id", authID)
 }
 
 // HandleUpdateUser
-func (h *IdentityHandler) HandleUpdateUser(c *gin.Context) {
-	authID, ok := getUserID(c)
+func (h *IdentityHandler) HandleUpdateUser(ctx *gin.Context) {
+	log := handlerLogger(ctx).With("operation", "update_user")
+	log.Info("user update request received")
+	authID, ok := getUserID(ctx)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, domain.ErrUnauthorized)
+		ctx.JSON(http.StatusUnauthorized, domain.ErrUnauthorized)
 		return
 	}
 
 	var input authv1.UpdateUserRequest
 
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, domain.ErrBadRequest)
+	if err := ctx.ShouldBindJSON(&input); err != nil {
+		log.Warn("user update request binding failed", "err", err)
+		ctx.JSON(http.StatusBadRequest, domain.ErrBadRequest)
 		return
 	}
 
-	updated, err := h.identityService.UpdateUser(c, &authv1.UpdateUserRequest{
+	updated, err := h.identityService.UpdateUser(ctx, &authv1.UpdateUserRequest{
 		UserId:    int32(authID),
 		Username:  input.Username,
 		Email:     input.Email,
@@ -286,159 +326,180 @@ func (h *IdentityHandler) HandleUpdateUser(c *gin.Context) {
 	})
 
 	if err != nil {
-		c.JSON(mapDomainError(err))
+		log.Warn("user update service failed", "user_id", authID, "err", err)
+		ctx.JSON(mapDomainError(err))
 		return
 	}
 
-	c.JSON(http.StatusOK, updated)
+	ctx.JSON(http.StatusOK, updated)
+	log.Info("user update request completed", "user_id", authID)
 }
 
 // HandleUpdatePassword
-func (h *IdentityHandler) HandleUpdatePassword(c *gin.Context) {
-	authID, ok := getUserID(c)
+func (h *IdentityHandler) HandleUpdatePassword(ctx *gin.Context) {
+	log := handlerLogger(ctx).With("operation", "change_password")
+	log.Info("password change request received")
+	authID, ok := getUserID(ctx)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, domain.ErrUnauthorized)
+		ctx.JSON(http.StatusUnauthorized, domain.ErrUnauthorized)
 		return
 	}
 
 	var input authv1.ChangePasswordRequest
 
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, domain.ErrBadRequest)
+	if err := ctx.ShouldBindJSON(&input); err != nil {
+		log.Warn("password change request binding failed", "err", err)
+		ctx.JSON(http.StatusBadRequest, domain.ErrBadRequest)
 		return
 	}
 
-	updated, err := h.identityService.ChangePassword(c, &authv1.ChangePasswordRequest{
+	updated, err := h.identityService.ChangePassword(ctx, &authv1.ChangePasswordRequest{
 		UserId:          int32(authID),
 		CurrentPassword: input.CurrentPassword,
 		NewPassword:     input.NewPassword,
 	})
 
 	if err != nil {
-		c.JSON(mapDomainError(err))
+		log.Warn("password change service failed", "user_id", authID, "err", err)
+		ctx.JSON(mapDomainError(err))
 		return
 	}
 
-	c.JSON(http.StatusOK, updated)
+	ctx.JSON(http.StatusOK, updated)
+	log.Info("password change request completed", "user_id", authID)
 }
 
-func (h *IdentityHandler) HandleDeleteUser(c *gin.Context) {
-	authID, ok := getUserID(c)
+func (h *IdentityHandler) HandleDeleteUser(ctx *gin.Context) {
+	log := handlerLogger(ctx).With("operation", "delete_user")
+	log.Info("user deletion request received")
+	authID, ok := getUserID(ctx)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, domain.ErrUnauthorized)
+		ctx.JSON(http.StatusUnauthorized, domain.ErrUnauthorized)
 		return
 	}
 
-	id := c.Param("id")
+	id := ctx.Param("id")
 
 	if validation.ValidateId(id) {
-		c.JSON(http.StatusBadRequest, domain.ErrBadRequest)
+		ctx.JSON(http.StatusBadRequest, domain.ErrBadRequest)
 		return
 	}
 
 	idint, err := strconv.Atoi(id)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, domain.ErrBadRequest)
+		ctx.JSON(http.StatusBadRequest, domain.ErrBadRequest)
 		return
 	}
 
 	if idint != authID {
-		c.JSON(http.StatusForbidden, domain.ErrUnauthorized)
+		ctx.JSON(http.StatusForbidden, domain.ErrUnauthorized)
 		return
 	}
 
-	if _, err := h.identityService.DeleteUser(c, &authv1.DeleteUserRequest{UserId: int32(authID)}); err != nil {
-		c.JSON(mapDomainError(err))
+	if _, err := h.identityService.DeleteUser(ctx, &authv1.DeleteUserRequest{UserId: int32(authID)}); err != nil {
+		log.Warn("user deletion service failed", "user_id", authID, "err", err)
+		ctx.JSON(mapDomainError(err))
 		return
 	}
 
-	c.JSON(http.StatusOK, domain.SuccessResponse)
+	ctx.JSON(http.StatusOK, domain.SuccessResponse)
+	log.Info("user deletion request completed", "user_id", authID)
 }
 
-func (h *IdentityHandler) HandleLogout(c *gin.Context) {
-	token, err := c.Cookie("access_token")
+func (h *IdentityHandler) HandleLogout(ctx *gin.Context) {
+	log := handlerLogger(ctx).With("operation", "logout")
+	log.Info("logout request received")
+	token, err := ctx.Cookie("access_token")
 
 	if err != nil {
-		token = bearerFromHeader(c)
+		token = bearerFromHeader(ctx)
 	}
 
 	if token == "" {
-		c.JSON(http.StatusUnauthorized, domain.ErrUnauthorized)
+		log.Warn("logout request missing access token")
+		ctx.JSON(http.StatusUnauthorized, domain.ErrUnauthorized)
 		return
 	}
 
 	sessionID, err := h.tokens.GetSessionIDFromAccessToken(token)
 
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, domain.ErrUnauthorized)
+		log.Warn("logout access token invalid", "err", err)
+		ctx.JSON(http.StatusUnauthorized, domain.ErrUnauthorized)
 	}
 
-	h.tokens.ClearAuthCookies(c)
+	h.tokens.ClearAuthCookies(ctx)
 
-	_, err = h.identityService.Logout(c, &authv1.LogoutRequest{
+	_, err = h.identityService.Logout(ctx, &authv1.LogoutRequest{
 		SessionId: sessionID,
 	})
 
 	if err != nil {
-		c.JSON(mapDomainError(err))
+		log.Warn("logout service failed", "err", err)
+		ctx.JSON(mapDomainError(err))
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	ctx.JSON(http.StatusOK, gin.H{
 		"message": "logged out successfully",
 	})
+	log.Info("logout request completed")
 }
 
-func (h *IdentityHandler) HandleLogoutAll(c *gin.Context) {
-	token, err := c.Cookie("access_token")
+func (h *IdentityHandler) HandleLogoutAll(ctx *gin.Context) {
+	log := handlerLogger(ctx).With("operation", "logout_all")
+	log.Info("logout all request received")
+	token, err := ctx.Cookie("access_token")
 
 	if err != nil {
-		token = bearerFromHeader(c)
+		token = bearerFromHeader(ctx)
 	}
 
 	userID, err := h.tokens.GetUserIDFromAccessToken(token)
-	h.tokens.ClearAuthCookies(c)
+	h.tokens.ClearAuthCookies(ctx)
 
 	if err != nil {
-		h.logger.Info("Failed to get userID from access token", "error", err)
-		c.JSON(http.StatusUnauthorized, domain.ErrUnauthorized)
+		log.Warn("failed to get user ID from access token", "err", err)
+		ctx.JSON(http.StatusUnauthorized, domain.ErrUnauthorized)
 		return
 	}
 
 	id, err := strconv.ParseInt(userID, 10, 32)
 	if err != nil {
-		h.logger.Info("User ID is invalid", "error", err)
-		c.JSON(http.StatusUnauthorized, domain.ErrUnauthorized)
+		log.Warn("user ID from access token is invalid", "err", err)
+		ctx.JSON(http.StatusUnauthorized, domain.ErrUnauthorized)
 		return
 	}
 
-	_, err = h.identityService.LogoutAll(c, &authv1.LogoutAllRequest{
+	_, err = h.identityService.LogoutAll(ctx, &authv1.LogoutAllRequest{
 		UserId: int32(id),
 	})
 
 	if err != nil {
-		c.JSON(mapDomainError(err))
+		log.Warn("logout all service failed", "err", err)
+		ctx.JSON(mapDomainError(err))
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	ctx.JSON(http.StatusOK, gin.H{
 		"message": "logged out successfully",
 	})
+	log.Info("logout all request completed", "user_id", id)
 }
 
 // Helper functions
-func (h *IdentityHandler) setAuthCookies(c *gin.Context, accessToken, refreshToken string) {
+func (h *IdentityHandler) setAuthCookies(ctx *gin.Context, accessToken, refreshToken string) {
 	// Calculate expiry times (matching auth service JWT expiry)
 	expAcc := 15 * 60          // 15 minutes
 	expRef := 7 * 24 * 60 * 60 // 7 days
 
-	c.SetSameSite(http.SameSiteLaxMode)
-	c.SetCookie("access_token", accessToken, expAcc, "/", "", true, true)
-	c.SetCookie("refresh_token", refreshToken, expRef, "/", "", true, true)
+	ctx.SetSameSite(http.SameSiteLaxMode)
+	ctx.SetCookie("access_token", accessToken, expAcc, "/", "", true, true)
+	ctx.SetCookie("refresh_token", refreshToken, expRef, "/", "", true, true)
 }
 
-func refreshFromCookie(c *gin.Context) string {
-	h, err := c.Cookie("refresh_token")
+func refreshFromCookie(ctx *gin.Context) string {
+	h, err := ctx.Cookie("refresh_token")
 	if err == nil {
 		if len(h) > 7 && h[:7] == "Bearer " {
 			return h[7:]
@@ -447,12 +508,12 @@ func refreshFromCookie(c *gin.Context) string {
 	return ""
 }
 
-func refreshFromHeader(c *gin.Context) string {
-	return c.GetHeader("X-Authorization")
+func refreshFromHeader(ctx *gin.Context) string {
+	return ctx.GetHeader("X-Authorization")
 }
 
-func bearerFromCookie(c *gin.Context) string {
-	h, err := c.Cookie("access_token")
+func bearerFromCookie(ctx *gin.Context) string {
+	h, err := ctx.Cookie("access_token")
 	if err == nil {
 		if len(h) > 7 && h[:7] == "Bearer " {
 			return h[7:]
@@ -461,16 +522,16 @@ func bearerFromCookie(c *gin.Context) string {
 	return ""
 }
 
-func bearerFromHeader(c *gin.Context) string {
-	h := c.GetHeader("Authorization")
+func bearerFromHeader(ctx *gin.Context) string {
+	h := ctx.GetHeader("Authorization")
 	if len(h) > 7 && h[:7] == "Bearer " {
 		return h[7:]
 	}
 	return ""
 }
 
-func getUserID(c *gin.Context) (int, bool) {
-	val, exists := c.Get("userID")
+func getUserID(ctx *gin.Context) (int, bool) {
+	val, exists := ctx.Get("userID")
 	if !exists {
 		return 0, false
 	}
@@ -480,9 +541,9 @@ func getUserID(c *gin.Context) (int, bool) {
 	return 0, false
 }
 
-func clearAuthCookies(c *gin.Context) {
-	c.SetSameSite(http.SameSiteLaxMode)
+func clearAuthCookies(ctx *gin.Context) {
+	ctx.SetSameSite(http.SameSiteLaxMode)
 
-	c.SetCookie("access_token", "", -1, "/", "", true, true)
-	c.SetCookie("refresh_token", "", -1, "/", "", true, true)
+	ctx.SetCookie("access_token", "", -1, "/", "", true, true)
+	ctx.SetCookie("refresh_token", "", -1, "/", "", true, true)
 }

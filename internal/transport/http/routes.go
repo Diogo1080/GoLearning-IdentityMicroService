@@ -1,12 +1,16 @@
 package http
 
 import (
+	"log/slog"
 	"net/http"
 
+	"github.com/Diogo1080/GoLearning-IdentityMicroService/internal/transport/http/middleware/logger"
 	"github.com/gin-gonic/gin"
 )
 
 func RegisterRoutes(r *gin.Engine, identityHandler *IdentityHandler, identiyMiddleware gin.HandlerFunc) *gin.Engine {
+	r.Use(logger.RequestContextLogger(slog.Default()))
+
 	// Public routes (no auth required)
 	public := r.Group("/api")
 	public.POST("/register", identityHandler.HandleRegister)
@@ -23,8 +27,7 @@ func RegisterRoutes(r *gin.Engine, identityHandler *IdentityHandler, identiyMidd
 	protected.Use(identiyMiddleware)
 
 	// User endpoints (profile management only)
-	protected.GET("/user/id/:id", identityHandler.HandleGetUserByID)
-	protected.GET("/user/name/:username", identityHandler.HandleGetUserByUsername)
+	protected.GET("/users/me", identityHandler.HandleGetCurrentUser)
 	protected.GET("/user/email/:email", identityHandler.HandleGetUserByEmail)
 	protected.PATCH("/user/password/:id", identityHandler.HandleUpdatePassword)
 	protected.PUT("/user", identityHandler.HandleUpdateUser)

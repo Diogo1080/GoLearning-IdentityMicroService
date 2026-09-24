@@ -7,7 +7,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/Diogo1080/GoLearning-IdentityMicroService/internal/logger"
 	server "github.com/Diogo1080/GoLearning-IdentityMicroService/internal/transport/http"
 	"github.com/Diogo1080/GoLearning-IdentityMicroService/tests/mocks"
 
@@ -16,7 +15,6 @@ import (
 
 func init() {
 	gin.SetMode(gin.TestMode)
-	_ = logger.New()
 }
 
 // ============================================================
@@ -77,6 +75,7 @@ func setupRouter(t *testing.T, mockSvc *mocks.MockPublicIdentityService, tokenMa
 	router.GET("/users/email/:email", handler.HandleGetUserByEmail)
 	router.GET("/users/username/:username", handler.HandleGetUserByUsername)
 	router.GET("/users/:id", handler.HandleGetUserByID)
+	router.GET("/users/me", handler.HandleGetCurrentUser)
 
 	router.PUT("/users", handler.HandleUpdateUser)
 	router.PATCH("/password", handler.HandleUpdatePassword)

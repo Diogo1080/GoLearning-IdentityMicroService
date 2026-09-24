@@ -1,16 +1,15 @@
 package service
 
 import (
+	"context"
 	"log/slog"
+	"strconv"
 
 	authv1 "github.com/Diogo1080/GoLearning-IdentityMicroService/api/v1"
 	"github.com/Diogo1080/GoLearning-IdentityMicroService/internal/domain"
-	"github.com/Diogo1080/GoLearning-IdentityMicroService/internal/logger"
 	"github.com/Diogo1080/GoLearning-IdentityMicroService/internal/store"
+	"github.com/Diogo1080/GoLearning-IdentityMicroService/internal/transport/http/middleware/logger"
 	"github.com/Diogo1080/GoLearning-IdentityMicroService/internal/validation"
-
-	"context"
-	"strconv"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -19,23 +18,28 @@ type PublicIdentityService struct {
 	authv1.UnimplementedPublicIdentityServiceServer
 	repo   store.IdentityRepository
 	tokens TokenManagerPort
-	logger *slog.Logger
 }
 
 //TODO make this service depend on User Service
 
 func NewPublicIdentityService(repo store.IdentityRepository, tokens TokenManagerPort) *PublicIdentityService {
-	return &PublicIdentityService{repo: repo, tokens: tokens, logger: logger.New().WithGroup("PublicIdentityService")}
+	return &PublicIdentityService{repo: repo, tokens: tokens}
+}
+
+func publicServiceLogger(ctx context.Context) *slog.Logger {
+	return logger.GetLoggerFromContext(ctx).With("service", "PublicIdentityService")
 }
 
 // Register creates a new user account
 func (s *PublicIdentityService) Register(ctx context.Context, req *authv1.RegisterRequest) (*authv1.RegisterResponse, error) {
-	s.logger.Info("Register attempt ", "request", req.String())
+	log := publicServiceLogger(ctx).With("operation", "register")
+
+	log.Info("register attempt", "username", req.Username)
 
 	// Check if username or email already exists
 	_, err := s.repo.GetUserByEmail(ctx, req.Email)
 	if err == nil {
-		s.logger.Error("Error getting user: ", "err", domain.ErrConflict)
+		log.Warn("registration rejected: email already exists")
 		return &authv1.RegisterResponse{
 			Success: false,
 		}, domain.ErrConflict
@@ -44,7 +48,7 @@ func (s *PublicIdentityService) Register(ctx context.Context, req *authv1.Regist
 	// Check if username or email already exists
 	_, err = s.repo.GetUserByUsername(ctx, req.Username)
 	if err == nil {
-		s.logger.Error("Error getting user: ", "err", domain.ErrConflict)
+		log.Warn("registration rejected: username already exists")
 		return &authv1.RegisterResponse{
 			Success: false,
 		}, domain.ErrConflict
@@ -53,7 +57,7 @@ func (s *PublicIdentityService) Register(ctx context.Context, req *authv1.Regist
 	// Hash password
 	hashedPassword, err := HashPassword(req.Password)
 	if err != nil {
-		s.logger.Error("Error hashing password: ", "err", err)
+		log.Error("error hashing password", "err", err)
 		return &authv1.RegisterResponse{
 			Success: false,
 		}, domain.ErrInternal
@@ -62,7 +66,7 @@ func (s *PublicIdentityService) Register(ctx context.Context, req *authv1.Regist
 	birthdate, err := validation.ValidateDate(req.Birthdate)
 
 	if err != nil {
-		s.logger.Error("Failed validating date", "err", err)
+		log.Warn("failed validating birthdate", "err", err)
 		return &authv1.RegisterResponse{Success: false}, err
 	}
 
@@ -76,13 +80,13 @@ func (s *PublicIdentityService) Register(ctx context.Context, req *authv1.Regist
 
 	createdUser, err := s.repo.CreateUser(ctx, user)
 	if err != nil {
-		s.logger.Error("Error creating user: ", "err", err)
+		log.Error("error creating user", "err", err)
 		return &authv1.RegisterResponse{
 			Success: false,
 		}, domain.ErrInternal
 	}
 
-	s.logger.Info("Register succesful.", "user", createdUser.ToUserDTO())
+	log.Info("registration successful", "user_id", createdUser.ID)
 	return &authv1.RegisterResponse{
 		Success: true,
 		UserId:  int32(createdUser.ID),
@@ -91,7 +95,9 @@ func (s *PublicIdentityService) Register(ctx context.Context, req *authv1.Regist
 
 // Login authenticates user and issues JWT tokens
 func (s *PublicIdentityService) Login(ctx context.Context, req *authv1.LoginRequest) (*authv1.LoginResponse, error) {
-	s.logger.Info("Attempting Login", "request", req)
+	log := publicServiceLogger(ctx).With("operation", "login")
+
+	log.Info("login attempt", "identifier", req.Usernameoremail)
 
 	var user domain.User
 	var err error
@@ -101,27 +107,27 @@ func (s *PublicIdentityService) Login(ctx context.Context, req *authv1.LoginRequ
 	} else if validation.ValidateUsername(req.Usernameoremail) == nil {
 		user, err = s.repo.GetUserByUsername(ctx, req.Usernameoremail)
 	} else {
-		s.logger.Error("Invalid Username or Email")
+		log.Warn("invalid login identifier")
 		return nil, domain.ErrBadRequest
 	}
 
 	if err != nil {
-		s.logger.Error("User doesn't exist")
+		log.Warn("login user lookup failed", "err", err)
 		return nil, err
 	}
 
 	if !VerifyPassword(req.Password, user.Password) {
-		s.logger.Error("Password doesn't match")
+		log.Warn("login password verification failed")
 		return nil, domain.ErrUnauthorized
 	}
 
 	token, err := s.tokens.IssueTokens(ctx, strconv.Itoa(int(user.ID)))
 	if err != nil {
-		s.logger.Error("Error issuing tokens", "err", err)
+		log.Error("error issuing tokens", "err", err)
 		return nil, domain.ErrInternal
 	}
 
-	s.logger.Info("Login succesful.")
+	log.Info("login successful", "user_id", user.ID)
 	return &authv1.LoginResponse{
 		AccessToken:  token.Access,
 		RefreshToken: token.Refresh,
@@ -135,23 +141,24 @@ func (s *PublicIdentityService) Login(ctx context.Context, req *authv1.LoginRequ
 // The refreshed tokens belong to the SAME session as the original refresh
 // token. Refreshing a token does not create a new login/session.
 func (s *PublicIdentityService) RefreshLogin(ctx context.Context, req *authv1.RefreshLoginRequest) (*authv1.LoginResponse, error) {
-	s.logger.Info("Attempting to refresh token")
+	log := publicServiceLogger(ctx).With("operation", "refresh_login")
+	log.Info("refresh login attempt")
 
 	claims, err := s.tokens.ParseRefresh(req.RefreshToken)
 	if err != nil {
-		s.logger.Error("Invalid refresh token", "err", err)
+		log.Warn("invalid refresh token", "err", err)
 		return nil, domain.ErrUnauthorized
 	}
 
 	// Make sure the refresh token's user + session are still valid.
 	ok, err := s.tokens.ValidateToken(ctx, claims)
 	if err != nil {
-		s.logger.Error("Error validating refresh token", "err", err)
+		log.Warn("error validating refresh token", "err", err)
 		return nil, domain.ErrUnauthorized
 	}
 
 	if !ok {
-		s.logger.Error(
+		log.Warn(
 			"Refresh token is revoked or session is no longer valid",
 			"user_id", claims.Subject,
 			"session_id", claims.SessionID,
@@ -167,11 +174,11 @@ func (s *PublicIdentityService) RefreshLogin(ctx context.Context, req *authv1.Re
 	)
 
 	if err != nil {
-		s.logger.Error("Error refreshing tokens", "err", err)
+		log.Error("error refreshing tokens", "err", err)
 		return nil, domain.ErrInternal
 	}
 
-	s.logger.Info(
+	log.Info(
 		"Refresh successful",
 		"user_id", claims.Subject,
 		"session_id", claims.SessionID,
@@ -191,16 +198,18 @@ func (s *PublicIdentityService) RefreshLogin(ctx context.Context, req *authv1.Re
 }
 
 func (s *PublicIdentityService) Logout(ctx context.Context, req *authv1.LogoutRequest) (*authv1.LogoutResponse, error) {
-	s.logger.Info("Attempting Logout")
+	log := publicServiceLogger(ctx).With("operation", "logout")
+
+	log.Info("logout attempt")
 
 	err := s.tokens.RevokeSession(ctx, req.SessionId)
 
 	if err != nil {
-		s.logger.Error("Error revoking tokens", "err", err)
+		log.Error("error revoking tokens", "err", err)
 		return nil, domain.ErrInternal
 	}
 
-	s.logger.Info("Logged out successfully")
+	log.Info("logout successful")
 
 	return &authv1.LogoutResponse{
 		Message: "logged out successfully",
@@ -208,16 +217,17 @@ func (s *PublicIdentityService) Logout(ctx context.Context, req *authv1.LogoutRe
 }
 
 func (s *PublicIdentityService) LogoutAll(ctx context.Context, req *authv1.LogoutAllRequest) (*authv1.LogoutResponse, error) {
-	s.logger.Info("Attempting Logout")
+	log := publicServiceLogger(ctx).With("operation", "logout_all")
+	log.Info("logout all attempt", "user_id", req.UserId)
 
 	err := s.tokens.RevokeAllTokens(ctx, strconv.Itoa(int(req.UserId)))
 
 	if err != nil {
-		s.logger.Error("Error revoking tokens", "err", err)
+		log.Error("error revoking tokens", "err", err)
 		return nil, domain.ErrInternal
 	}
 
-	s.logger.Info("Logged out successfully")
+	log.Info("logout all successful", "user_id", req.UserId)
 
 	return &authv1.LogoutResponse{
 		Message: "logged out successfully",
@@ -225,15 +235,16 @@ func (s *PublicIdentityService) LogoutAll(ctx context.Context, req *authv1.Logou
 }
 
 func (s *PublicIdentityService) GetUserByID(ctx context.Context, req *authv1.GetUserRequest) (*authv1.GetUserResponse, error) {
-	s.logger.Info("Attempting getting user", "request", req)
+	log := publicServiceLogger(ctx).With("operation", "get_user_by_id")
+	log.Debug("user lookup attempt", "user_id", req.Id)
 	user, err := s.repo.GetUserByID(ctx, int(req.Id))
 
 	if err != nil {
-		s.logger.Error("Failed getting user", "err", err)
+		log.Warn("user lookup failed", "user_id", req.Id, "err", err)
 		return &authv1.GetUserResponse{}, err
 	}
 
-	s.logger.Info("Got user successfully")
+	log.Debug("user lookup successful", "user_id", user.ID)
 	return &authv1.GetUserResponse{
 		Id:        int32(user.ID),
 		Username:  user.Username,
@@ -243,15 +254,16 @@ func (s *PublicIdentityService) GetUserByID(ctx context.Context, req *authv1.Get
 }
 
 func (s *PublicIdentityService) GetUserByEmail(ctx context.Context, req *authv1.GetUserRequest) (*authv1.GetUserResponse, error) {
-	s.logger.Info("Attempting getting user", "request", req)
+	log := publicServiceLogger(ctx).With("operation", "get_user_by_email")
+	log.Debug("user lookup attempt")
 	user, err := s.repo.GetUserByEmail(ctx, req.Email)
 
 	if err != nil {
-		s.logger.Error("Failed getting user", "err", err)
+		log.Warn("user lookup failed", "err", err)
 		return &authv1.GetUserResponse{}, err
 	}
 
-	s.logger.Info("Got user successfully")
+	log.Debug("user lookup successful", "user_id", user.ID)
 	return &authv1.GetUserResponse{
 		Id:        int32(user.ID),
 		Username:  user.Username,
@@ -261,15 +273,16 @@ func (s *PublicIdentityService) GetUserByEmail(ctx context.Context, req *authv1.
 }
 
 func (s *PublicIdentityService) GetUserByUsername(ctx context.Context, req *authv1.GetUserRequest) (*authv1.GetUserResponse, error) {
-	s.logger.Info("Attempting getting user", "request", req)
+	log := publicServiceLogger(ctx).With("operation", "get_user_by_username")
+	log.Debug("user lookup attempt", "username", req.Username)
 	user, err := s.repo.GetUserByUsername(ctx, req.Username)
 
 	if err != nil {
-		s.logger.Error("Failed getting user", "err", err)
+		log.Warn("user lookup failed", "err", err)
 		return &authv1.GetUserResponse{}, err
 	}
 
-	s.logger.Info("Got user successfully")
+	log.Debug("user lookup successful", "user_id", user.ID)
 	return &authv1.GetUserResponse{
 		Id:        int32(user.ID),
 		Username:  user.Username,
@@ -279,10 +292,12 @@ func (s *PublicIdentityService) GetUserByUsername(ctx context.Context, req *auth
 }
 
 func (s *PublicIdentityService) UpdateUser(ctx context.Context, req *authv1.UpdateUserRequest) (*authv1.UpdateUserResponse, error) {
-	s.logger.Info("Attempting update user", "request", req)
+	log := publicServiceLogger(ctx).With("operation", "update_user")
+	log.Info("user update attempt", "user_id", req.UserId)
 
 	tochange, err := s.repo.GetUserByID(ctx, int(req.UserId))
 	if err != nil {
+		log.Warn("user update target lookup failed", "user_id", req.UserId, "err", err)
 		return &authv1.UpdateUserResponse{Success: false}, err
 	}
 
@@ -291,68 +306,77 @@ func (s *PublicIdentityService) UpdateUser(ctx context.Context, req *authv1.Upda
 	tochange.Birthday, err = validation.ValidateDate(req.Birthdate)
 
 	if err != nil {
-		s.logger.Error("Failed validating date", "err", err)
+		log.Warn("failed validating birthdate", "err", err)
 		return &authv1.UpdateUserResponse{Success: false}, err
 	}
 
 	err = s.repo.UpdateUser(ctx, int(req.UserId), tochange)
 
 	if err != nil {
-		s.logger.Error("Failed Updating user", "err", err)
+		log.Error("failed updating user", "user_id", req.UserId, "err", err)
 		return &authv1.UpdateUserResponse{Success: false}, err
 	}
 
-	s.logger.Info("Update succesful")
+	log.Info("user update successful", "user_id", req.UserId)
 	return &authv1.UpdateUserResponse{Success: true}, nil
 }
 
 func (s *PublicIdentityService) ChangePassword(ctx context.Context, req *authv1.ChangePasswordRequest) (*authv1.ChangePasswordResponse, error) {
-	s.logger.Info("Attempting update password", "request", req)
+	log := publicServiceLogger(ctx).With("operation", "change_password")
+	log.Info("password change attempt", "user_id", req.UserId)
 	tochange, err := s.repo.GetUserByID(ctx, int(req.UserId))
 
 	if err != nil {
+		log.Warn("password change target lookup failed", "user_id", req.UserId, "err", err)
 		return &authv1.ChangePasswordResponse{Success: false}, err
 	}
 
 	if !VerifyPassword(req.CurrentPassword, tochange.Password) {
-		s.logger.Error("Password doesn't match")
+		log.Warn("password verification failed", "user_id", req.UserId)
 		return &authv1.ChangePasswordResponse{Success: false}, domain.ErrUnauthorized
 	}
 
 	pass, err := HashPassword(req.NewPassword)
 
 	if err != nil {
-		s.logger.Error("Failed while hashing password")
+		log.Error("failed while hashing password", "user_id", req.UserId)
 		return &authv1.ChangePasswordResponse{Success: false}, domain.ErrInternal
 	}
 
 	err = s.repo.UpdatePassword(ctx, int(req.UserId), pass)
 
 	if err != nil {
-		s.logger.Error("Failed Updating user", "err", err)
+		log.Error("failed updating password", "user_id", req.UserId, "err", err)
 		return &authv1.ChangePasswordResponse{Success: false}, err
 	}
 
-	s.tokens.RevokeAllTokens(ctx, strconv.Itoa(int(req.UserId)))
+	if err := s.tokens.RevokeAllTokens(ctx, strconv.Itoa(int(req.UserId))); err != nil {
+		log.Error("failed to revoke sessions after password change", "user_id", req.UserId, "err", err)
+		return &authv1.ChangePasswordResponse{Success: false}, domain.ErrInternal
+	}
 
-	s.logger.Info("Update succesful")
+	log.Info("password change successful", "user_id", req.UserId)
 	return &authv1.ChangePasswordResponse{Success: true}, nil
 }
 
 func (s *PublicIdentityService) DeleteUser(ctx context.Context, req *authv1.DeleteUserRequest) (*authv1.DeleteUserResponse, error) {
-	s.logger.Info("Attempting to delete user", "request", req)
+	log := publicServiceLogger(ctx).With("operation", "delete_user")
+	log.Info("user deletion attempt", "user_id", req.UserId)
 	_, err := s.repo.GetUserByID(ctx, int(req.UserId))
 
 	if err != nil {
+		log.Warn("user deletion target lookup failed", "user_id", req.UserId, "err", err)
 		return &authv1.DeleteUserResponse{Success: false}, err
 	}
 
 	err = s.repo.DeleteUser(ctx, int(req.UserId))
 
 	if err != nil {
+		log.Error("user deletion failed", "user_id", req.UserId, "err", err)
 		return &authv1.DeleteUserResponse{Success: false}, err
 	}
 
+	log.Info("user deletion successful", "user_id", req.UserId)
 	return &authv1.DeleteUserResponse{Success: true}, nil
 }
 

@@ -7,19 +7,22 @@ import (
 
 	authv1 "github.com/Diogo1080/GoLearning-IdentityMicroService/api/v1"
 	"github.com/Diogo1080/GoLearning-IdentityMicroService/internal/domain"
-	"github.com/Diogo1080/GoLearning-IdentityMicroService/internal/logger"
 	"github.com/Diogo1080/GoLearning-IdentityMicroService/internal/store"
+	"github.com/Diogo1080/GoLearning-IdentityMicroService/internal/transport/http/middleware/logger"
 )
 
 type InternalIdentityService struct {
 	authv1.UnimplementedInternalIdentityServiceServer
 	repo   store.IdentityRepository
 	tokens TokenManagerPort
-	logger *slog.Logger
 }
 
 func NewInternalIdentityService(repo store.IdentityRepository, tokens TokenManagerPort) *InternalIdentityService {
-	return &InternalIdentityService{repo: repo, tokens: tokens, logger: logger.New().WithGroup("InternalIdentityService")}
+	return &InternalIdentityService{repo: repo, tokens: tokens}
+}
+
+func internalServiceLogger(ctx context.Context) *slog.Logger {
+	return logger.GetLoggerFromContext(ctx).With("service", "InternalIdentityService")
 }
 
 // ValidateToken checks if an access token is valid and not revoked.
@@ -32,22 +35,23 @@ func NewInternalIdentityService(repo store.IdentityRepository, tokens TokenManag
 //   - the session exists
 //   - the session version matches Redis
 func (s *InternalIdentityService) ValidateToken(ctx context.Context, req *authv1.ValidateTokenRequest) (*authv1.ValidateTokenResponse, error) {
-	s.logger.Info("Attempting to validate token")
+	log := internalServiceLogger(ctx).With("operation", "validate_token")
+	log.Info("attempting to validate token")
 
 	claims, err := s.tokens.ParseAccess(req.Token)
 	if err != nil {
-		s.logger.Error("Invalid token", "err", err)
+		log.Error("invalid token", "err", err)
 		return nil, domain.ErrUnauthorized
 	}
 
 	ok, err := s.tokens.ValidateToken(ctx, claims)
 	if err != nil {
-		s.logger.Error("Error validating token", "err", err)
+		log.Error("error validating token", "err", err)
 		return nil, domain.ErrInternal
 	}
 
 	if !ok {
-		s.logger.Error(
+		log.Error(
 			"Token is revoked or session is no longer valid",
 			"user_id", claims.Subject,
 			"session_id", claims.SessionID,
@@ -57,11 +61,11 @@ func (s *InternalIdentityService) ValidateToken(ctx context.Context, req *authv1
 
 	userID, err := strconv.ParseInt(claims.Subject, 10, 32)
 	if err != nil {
-		s.logger.Error("Invalid user ID", "err", err)
+		log.Error("invalid user ID", "err", err)
 		return nil, domain.ErrInternal
 	}
 
-	s.logger.Info(
+	log.Info(
 		"Token validation successful",
 		"user_id", claims.Subject,
 		"session_id", claims.SessionID,
