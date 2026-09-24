@@ -8,6 +8,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+//TODO: OpenAPI generate schema
+
 func RegisterRoutes(r *gin.Engine, identityHandler *IdentityHandler, identiyMiddleware gin.HandlerFunc) *gin.Engine {
 	r.Use(logger.RequestContextLogger(slog.Default()))
 

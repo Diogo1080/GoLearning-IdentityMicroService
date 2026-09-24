@@ -6,7 +6,6 @@ import (
 	"log/slog"
 
 	"github.com/Diogo1080/GoLearning-IdentityMicroService/internal/domain"
-	"github.com/Diogo1080/GoLearning-IdentityMicroService/internal/transport/http/middleware/logger"
 )
 
 type IdentityRepository interface {
@@ -28,7 +27,7 @@ func NewSQLiteIdentityRepository(db *sql.DB) *SQLiteIdentityRepository {
 }
 
 func identityStoreLogger(ctx context.Context) *slog.Logger {
-	return logger.GetLoggerFromContext(ctx).With("service", "IdentityRepository")
+	return slog.Default().With("service", "IdentityRepository")
 }
 
 func (r *SQLiteIdentityRepository) GetUserByEmail(ctx context.Context, email string) (domain.User, error) {

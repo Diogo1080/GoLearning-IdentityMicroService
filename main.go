@@ -11,9 +11,9 @@ import (
 	authv1 "github.com/Diogo1080/GoLearning-IdentityMicroService/api/v1"
 	"github.com/Diogo1080/GoLearning-IdentityMicroService/internal/service"
 	"github.com/Diogo1080/GoLearning-IdentityMicroService/internal/store"
-	tokens "github.com/Diogo1080/GoLearning-IdentityMicroService/internal/tokens"
+	"github.com/Diogo1080/GoLearning-IdentityMicroService/internal/tokens"
 	server "github.com/Diogo1080/GoLearning-IdentityMicroService/internal/transport/http"
-	middleware "github.com/Diogo1080/GoLearning-IdentityMicroService/internal/transport/http/middleware"
+	"github.com/Diogo1080/GoLearning-IdentityMicroService/internal/transport/http/middleware"
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
@@ -31,6 +31,10 @@ func main() {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
 	defer db.Close()
+
+	if err := store.RunMigrations(db); err != nil {
+		log.Fatalf("Failed to run database migrations: %v", err)
+	}
 
 	rds := store.NewRedis()
 	defer rds.Client.Close()
