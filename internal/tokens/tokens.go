@@ -8,7 +8,7 @@ import (
 	"os"
 	"time"
 
-	entities "github.com/Diogo1080/GoLearning-IdentityMicroService/internal/domain"
+	"github.com/Diogo1080/GoLearning-IdentityMicroService/internal/domain"
 	"github.com/Diogo1080/GoLearning-IdentityMicroService/internal/store"
 
 	"github.com/gin-gonic/gin"
@@ -192,49 +192,17 @@ func (tm *TokenManager) issueTokensForSession(ctx context.Context, r *store.Redi
 func (tm *TokenManager) SetAuthCookies(c *gin.Context, t *Tokens) {
 	c.SetSameSite(http.SameSiteLaxMode)
 
-	c.SetCookie(
-		"access_token",
-		t.Access,
-		int(time.Until(t.ExpAcc).Seconds()),
-		"/",
-		"",
-		true,
-		true,
-	)
+	c.SetCookie("access_token", t.Access, int(time.Until(t.ExpAcc).Seconds()), "/", "", true, true)
 
-	c.SetCookie(
-		"refresh_token",
-		t.Refresh,
-		int(time.Until(t.ExpRef).Seconds()),
-		"/",
-		"",
-		true,
-		true,
-	)
+	c.SetCookie("refresh_token", t.Refresh, int(time.Until(t.ExpRef).Seconds()), "/", "", true, true)
 }
 
 func (tm *TokenManager) ClearAuthCookies(c *gin.Context) {
 	c.SetSameSite(http.SameSiteLaxMode)
 
-	c.SetCookie(
-		"access_token",
-		"",
-		-1,
-		"/",
-		"",
-		true,
-		true,
-	)
+	c.SetCookie("access_token", "", -1, "/", "", true, true)
 
-	c.SetCookie(
-		"refresh_token",
-		"",
-		-1,
-		"/",
-		"",
-		true,
-		true,
-	)
+	c.SetCookie("refresh_token", "", -1, "/", "", true, true)
 }
 
 // ParseAccess parses and validates an access token.
@@ -247,7 +215,7 @@ func (tm *TokenManager) ParseAccess(tokenStr string) (*Claims, error) {
 	}
 
 	if claims.TokenType != TokenTypeAccess {
-		return nil, entities.ErrUnauthorized
+		return nil, domain.ErrUnauthorized
 	}
 
 	return claims, nil
@@ -263,7 +231,7 @@ func (tm *TokenManager) ParseRefresh(tokenStr string) (*Claims, error) {
 	}
 
 	if claims.TokenType != TokenTypeRefresh {
-		return nil, entities.ErrUnauthorized
+		return nil, domain.ErrUnauthorized
 	}
 
 	return claims, nil
@@ -301,24 +269,24 @@ func (tm *TokenManager) parseWithSecret(tokenStr, secret string) (*Claims, error
 
 	claims, ok := token.Claims.(*Claims)
 	if !ok || !token.Valid {
-		return nil, entities.ErrUnauthorized
+		return nil, domain.ErrUnauthorized
 	}
 
 	// These are required for session-aware authentication.
 	if claims.Subject == "" {
-		return nil, entities.ErrUnauthorized
+		return nil, domain.ErrUnauthorized
 	}
 
 	if claims.SessionID == "" {
-		return nil, entities.ErrUnauthorized
+		return nil, domain.ErrUnauthorized
 	}
 
 	if claims.UserVersion < 1 {
-		return nil, entities.ErrUnauthorized
+		return nil, domain.ErrUnauthorized
 	}
 
 	if claims.SessionVersion < 1 {
-		return nil, entities.ErrUnauthorized
+		return nil, domain.ErrUnauthorized
 	}
 
 	return claims, nil

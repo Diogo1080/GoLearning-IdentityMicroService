@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	entities "github.com/Diogo1080/GoLearning-IdentityMicroService/internal/domain"
+	"github.com/Diogo1080/GoLearning-IdentityMicroService/internal/domain"
 )
 
 func ValidateId(id string) bool {
@@ -18,19 +18,19 @@ func ValidateId(id string) bool {
 
 func ValidateRegisterRequest(username, email, password, birthate string) error {
 	if err := ValidateUsername(username); err != nil {
-		return entities.ErrBadData
+		return domain.ErrBadRequest
 	}
 
 	if err := ValidateEmail(email); err != nil {
-		return entities.ErrBadData
+		return domain.ErrBadRequest
 	}
 
 	if err := ValidatePassword(password); err != nil {
-		return entities.ErrBadData
+		return domain.ErrBadRequest
 	}
 
 	if _, err := ValidateDate(birthate); err != nil {
-		return entities.ErrBadData
+		return domain.ErrBadRequest
 	}
 
 	return nil
@@ -38,14 +38,14 @@ func ValidateRegisterRequest(username, email, password, birthate string) error {
 
 func ValidateUsername(username string) error {
 	if len(username) < 3 || len(username) > 50 {
-		return entities.ErrBadData
+		return domain.ErrBadRequest
 	}
 	return nil
 }
 
 func ValidatePassword(password string) error {
 	if len(password) < 6 {
-		return entities.ErrBadData
+		return domain.ErrBadRequest
 	}
 	return nil
 }
@@ -56,11 +56,11 @@ func ValidateEmail(email string) error {
 	email = strings.TrimSpace(email)
 
 	if email == "" || len(email) > 254 {
-		return entities.ErrBadData
+		return domain.ErrBadRequest
 	}
 
 	if !emailRegex.MatchString(email) {
-		return entities.ErrBadData
+		return domain.ErrBadRequest
 	}
 
 	return nil
@@ -71,7 +71,7 @@ func ValidateDate(dateStr string) (time.Time, error) {
 	date, err := time.Parse("2006-01-02", dateStr)
 
 	if err != nil {
-		return time.Now(), entities.ErrBadData
+		return time.Now(), domain.ErrBadRequest
 	}
 
 	return date, nil

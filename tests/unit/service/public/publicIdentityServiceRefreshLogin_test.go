@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	authv1 "github.com/Diogo1080/GoLearning-IdentityMicroService/api/v1"
-	entities "github.com/Diogo1080/GoLearning-IdentityMicroService/internal/domain"
+	"github.com/Diogo1080/GoLearning-IdentityMicroService/internal/domain"
 	"github.com/Diogo1080/GoLearning-IdentityMicroService/internal/tokens"
 
 	"github.com/go-openapi/testify/v2/require"
@@ -129,7 +129,7 @@ func TestRefreshToken_ParseError(t *testing.T) {
 	)
 
 	assert.Nil(t, resp)
-	assert.ErrorIs(t, err, entities.ErrUnauthorized)
+	assert.ErrorIs(t, err, domain.ErrUnauthorized)
 }
 
 func TestRefreshToken_ValidationReturnsFalse(t *testing.T) {
@@ -175,7 +175,7 @@ func TestRefreshToken_ValidationReturnsFalse(t *testing.T) {
 	)
 
 	assert.Nil(t, resp)
-	assert.ErrorIs(t, err, entities.ErrUnauthorized)
+	assert.ErrorIs(t, err, domain.ErrUnauthorized)
 
 	assert.True(t, validateCalled)
 	assert.False(t, issueCalled)
@@ -216,7 +216,7 @@ func TestRefreshToken_ValidationError(t *testing.T) {
 	)
 
 	assert.Nil(t, resp)
-	assert.ErrorIs(t, err, entities.ErrUnauthorized)
+	assert.ErrorIs(t, err, domain.ErrUnauthorized)
 
 	// Do not issue tokens when validation itself failed.
 	assert.False(t, issueCalled)
@@ -257,7 +257,7 @@ func TestRefreshToken_IssueTokensError(t *testing.T) {
 	)
 
 	assert.Nil(t, resp)
-	assert.ErrorIs(t, err, entities.ErrInternalServerError)
+	assert.ErrorIs(t, err, domain.ErrInternal)
 }
 
 func TestRefreshToken_DoesNotIssueTokensWhenParsingFails(t *testing.T) {
@@ -286,6 +286,6 @@ func TestRefreshToken_DoesNotIssueTokensWhenParsingFails(t *testing.T) {
 	)
 
 	assert.Nil(t, resp)
-	assert.ErrorIs(t, err, entities.ErrUnauthorized)
+	assert.ErrorIs(t, err, domain.ErrUnauthorized)
 	assert.False(t, issueCalled)
 }

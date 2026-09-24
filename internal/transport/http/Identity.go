@@ -1,13 +1,12 @@
 package http
 
 import (
-	"errors"
 	"fmt"
 	"log/slog"
 	"strconv"
 
 	authv1 "github.com/Diogo1080/GoLearning-IdentityMicroService/api/v1"
-	entities "github.com/Diogo1080/GoLearning-IdentityMicroService/internal/domain"
+	"github.com/Diogo1080/GoLearning-IdentityMicroService/internal/domain"
 	"github.com/Diogo1080/GoLearning-IdentityMicroService/internal/logger"
 	"github.com/Diogo1080/GoLearning-IdentityMicroService/internal/validation"
 
@@ -61,12 +60,12 @@ func (h *IdentityHandler) HandleRegister(c *gin.Context) {
 	var input RegisterInput
 
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, entities.ErrBadData)
+		c.JSON(http.StatusBadRequest, domain.ErrBadRequest)
 		return
 	}
 
 	if err := validation.ValidateRegisterRequest(input.Username, input.Email, input.Password, input.Birthdate); err != nil {
-		c.JSON(http.StatusBadRequest, entities.ErrBadData)
+		c.JSON(http.StatusBadRequest, domain.ErrBadRequest)
 		return
 	}
 
@@ -81,12 +80,7 @@ func (h *IdentityHandler) HandleRegister(c *gin.Context) {
 	})
 
 	if err != nil || !resp.Success {
-		if errors.Is(err, entities.ErrAlreadyExists) {
-			c.JSON(http.StatusConflict, err)
-			return
-		}
-
-		c.JSON(http.StatusServiceUnavailable, err)
+		c.JSON(mapDomainError(err))
 		return
 	}
 
@@ -104,7 +98,7 @@ func (h *IdentityHandler) HandleLogin(c *gin.Context) {
 
 	var input LoginRequest
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, entities.ErrBadData)
+		c.JSON(http.StatusBadRequest, domain.ErrBadRequest)
 		return
 	}
 
@@ -117,25 +111,12 @@ func (h *IdentityHandler) HandleLogin(c *gin.Context) {
 	})
 
 	if err != nil {
-		if errors.Is(err, entities.ErrBadData) {
-			c.JSON(http.StatusBadRequest, err)
-			return
-		}
-		if errors.Is(err, entities.ErrNotFound) {
-			c.JSON(http.StatusNotFound, err)
-			return
-		}
-		if errors.Is(err, entities.ErrUnauthorized) {
-			c.JSON(http.StatusUnauthorized, err)
-			return
-		}
-
-		c.JSON(http.StatusServiceUnavailable, err)
+		c.JSON(mapDomainError(err))
 		return
 	}
 
 	if resp == nil {
-		c.JSON(http.StatusUnauthorized, entities.ErrUnauthorized)
+		c.JSON(http.StatusUnauthorized, domain.ErrUnauthorized)
 		return
 	}
 
@@ -158,7 +139,7 @@ func (h *IdentityHandler) HandleRefreshLogin(c *gin.Context) {
 	}
 
 	if refresh == "" {
-		c.JSON(http.StatusUnauthorized, entities.ErrUnauthorized)
+		c.JSON(http.StatusUnauthorized, domain.ErrUnauthorized)
 		return
 	}
 
@@ -175,17 +156,12 @@ func (h *IdentityHandler) HandleRefreshLogin(c *gin.Context) {
 	fmt.Print(resp)
 
 	if err != nil {
-		if errors.Is(err, entities.ErrUnauthorized) {
-			c.JSON(http.StatusUnauthorized, err)
-			return
-		}
-
-		c.JSON(http.StatusInternalServerError, err)
+		c.JSON(mapDomainError(err))
 		return
 	}
 
 	if resp == nil {
-		c.JSON(http.StatusUnauthorized, entities.ErrUnauthorized)
+		c.JSON(http.StatusUnauthorized, domain.ErrUnauthorized)
 		return
 	}
 
@@ -203,28 +179,24 @@ func (h *IdentityHandler) HandleRefreshLogin(c *gin.Context) {
 func (h *IdentityHandler) HandleGetUserByEmail(c *gin.Context) {
 	authID, ok := getUserID(c)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, entities.ErrUnauthorized)
+		c.JSON(http.StatusUnauthorized, domain.ErrUnauthorized)
 		return
 	}
 
 	email := c.Param("email")
 	if err := validation.ValidateEmail(email); err != nil {
-		c.JSON(http.StatusBadRequest, entities.ErrBadData)
+		c.JSON(http.StatusBadRequest, domain.ErrBadRequest)
 		return
 	}
 
 	user, err := h.identityService.GetUserByEmail(c, &authv1.GetUserRequest{Email: email})
 	if err != nil {
-		if errors.Is(err, entities.ErrNotFound) {
-			c.JSON(http.StatusNotFound, entities.ErrNotFound)
-			return
-		}
-		c.JSON(http.StatusInternalServerError, entities.ErrDatabaseFailed)
+		c.JSON(mapDomainError(err))
 		return
 	}
 
 	if int(user.Id) != authID {
-		c.JSON(http.StatusForbidden, entities.ErrUnauthorized)
+		c.JSON(http.StatusForbidden, domain.ErrUnauthorized)
 		return
 	}
 
@@ -234,29 +206,25 @@ func (h *IdentityHandler) HandleGetUserByEmail(c *gin.Context) {
 func (h *IdentityHandler) HandleGetUserByUsername(c *gin.Context) {
 	authID, ok := getUserID(c)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, entities.ErrUnauthorized)
+		c.JSON(http.StatusUnauthorized, domain.ErrUnauthorized)
 		return
 	}
 
 	username := c.Param("username")
 
 	if err := validation.ValidateUsername(username); err != nil {
-		c.JSON(http.StatusBadRequest, entities.ErrBadData)
+		c.JSON(http.StatusBadRequest, domain.ErrBadRequest)
 		return
 	}
 
 	user, err := h.identityService.GetUserByUsername(c, &authv1.GetUserRequest{Username: username})
 	if err != nil {
-		if errors.Is(err, entities.ErrNotFound) {
-			c.JSON(http.StatusNotFound, entities.ErrNotFound)
-			return
-		}
-		c.JSON(http.StatusInternalServerError, entities.ErrDatabaseFailed)
+		c.JSON(mapDomainError(err))
 		return
 	}
 
 	if int(user.Id) != authID {
-		c.JSON(http.StatusForbidden, entities.ErrUnauthorized)
+		c.JSON(http.StatusForbidden, domain.ErrUnauthorized)
 		return
 	}
 
@@ -267,33 +235,27 @@ func (h *IdentityHandler) HandleGetUserByID(c *gin.Context) {
 	h.logger.Info("Routing to service getUserId")
 	authID, ok := getUserID(c)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, entities.ErrUnauthorized)
+		c.JSON(http.StatusUnauthorized, domain.ErrUnauthorized)
 		return
 	}
 
 	id := c.Param("id")
 
 	if validation.ValidateId(id) {
-		c.JSON(http.StatusBadRequest, entities.ErrBadData)
+		c.JSON(http.StatusBadRequest, domain.ErrBadRequest)
 		return
 	}
 
 	i, _ := strconv.Atoi(id)
 
 	if i != authID {
-		c.JSON(http.StatusForbidden, entities.ErrUnauthorized)
+		c.JSON(http.StatusForbidden, domain.ErrUnauthorized)
 		return
 	}
 
 	user, err := h.identityService.GetUserByID(c, &authv1.GetUserRequest{Id: int32(authID)})
 	if err != nil {
-		if errors.Is(err, entities.ErrNotFound) {
-			c.JSON(http.StatusNotFound, err)
-			return
-		}
-
-		h.logger.Error("Error", "error", err)
-		c.JSON(http.StatusInternalServerError, err)
+		c.JSON(mapDomainError(err))
 		return
 	}
 
@@ -305,14 +267,14 @@ func (h *IdentityHandler) HandleGetUserByID(c *gin.Context) {
 func (h *IdentityHandler) HandleUpdateUser(c *gin.Context) {
 	authID, ok := getUserID(c)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, entities.ErrUnauthorized)
+		c.JSON(http.StatusUnauthorized, domain.ErrUnauthorized)
 		return
 	}
 
 	var input authv1.UpdateUserRequest
 
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, entities.ErrBadData)
+		c.JSON(http.StatusBadRequest, domain.ErrBadRequest)
 		return
 	}
 
@@ -324,15 +286,7 @@ func (h *IdentityHandler) HandleUpdateUser(c *gin.Context) {
 	})
 
 	if err != nil {
-		if errors.Is(err, entities.ErrNotFound) {
-			c.JSON(http.StatusNotFound, err)
-			return
-		}
-		if errors.Is(err, entities.ErrConflict) {
-			c.JSON(http.StatusConflict, err)
-			return
-		}
-		c.JSON(http.StatusInternalServerError, entities.ErrDatabaseFailed)
+		c.JSON(mapDomainError(err))
 		return
 	}
 
@@ -343,14 +297,14 @@ func (h *IdentityHandler) HandleUpdateUser(c *gin.Context) {
 func (h *IdentityHandler) HandleUpdatePassword(c *gin.Context) {
 	authID, ok := getUserID(c)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, entities.ErrUnauthorized)
+		c.JSON(http.StatusUnauthorized, domain.ErrUnauthorized)
 		return
 	}
 
 	var input authv1.ChangePasswordRequest
 
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, entities.ErrBadData)
+		c.JSON(http.StatusBadRequest, domain.ErrBadRequest)
 		return
 	}
 
@@ -361,11 +315,7 @@ func (h *IdentityHandler) HandleUpdatePassword(c *gin.Context) {
 	})
 
 	if err != nil {
-		if errors.Is(err, entities.ErrNotFound) {
-			c.JSON(http.StatusNotFound, err)
-			return
-		}
-		c.JSON(http.StatusInternalServerError, entities.ErrDatabaseFailed)
+		c.JSON(mapDomainError(err))
 		return
 	}
 
@@ -375,38 +325,34 @@ func (h *IdentityHandler) HandleUpdatePassword(c *gin.Context) {
 func (h *IdentityHandler) HandleDeleteUser(c *gin.Context) {
 	authID, ok := getUserID(c)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, entities.ErrUnauthorized)
+		c.JSON(http.StatusUnauthorized, domain.ErrUnauthorized)
 		return
 	}
 
 	id := c.Param("id")
 
 	if validation.ValidateId(id) {
-		c.JSON(http.StatusBadRequest, entities.ErrBadData)
+		c.JSON(http.StatusBadRequest, domain.ErrBadRequest)
 		return
 	}
 
 	idint, err := strconv.Atoi(id)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, entities.ErrBadData)
+		c.JSON(http.StatusBadRequest, domain.ErrBadRequest)
 		return
 	}
 
 	if idint != authID {
-		c.JSON(http.StatusForbidden, entities.ErrUnauthorized)
+		c.JSON(http.StatusForbidden, domain.ErrUnauthorized)
 		return
 	}
 
 	if _, err := h.identityService.DeleteUser(c, &authv1.DeleteUserRequest{UserId: int32(authID)}); err != nil {
-		if errors.Is(err, entities.ErrNotFound) {
-			c.JSON(http.StatusNotFound, err)
-			return
-		}
-		c.JSON(http.StatusInternalServerError, entities.ErrDatabaseFailed)
+		c.JSON(mapDomainError(err))
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "user deleted successfully"})
+	c.JSON(http.StatusOK, domain.SuccessResponse)
 }
 
 func (h *IdentityHandler) HandleLogout(c *gin.Context) {
@@ -417,14 +363,14 @@ func (h *IdentityHandler) HandleLogout(c *gin.Context) {
 	}
 
 	if token == "" {
-		c.JSON(http.StatusUnauthorized, entities.ErrUnauthorized)
+		c.JSON(http.StatusUnauthorized, domain.ErrUnauthorized)
 		return
 	}
 
 	sessionID, err := h.tokens.GetSessionIDFromAccessToken(token)
 
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, entities.ErrUnauthorized)
+		c.JSON(http.StatusUnauthorized, domain.ErrUnauthorized)
 	}
 
 	h.tokens.ClearAuthCookies(c)
@@ -434,7 +380,7 @@ func (h *IdentityHandler) HandleLogout(c *gin.Context) {
 	})
 
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, entities.ErrUnauthorized)
+		c.JSON(mapDomainError(err))
 		return
 	}
 
@@ -455,14 +401,14 @@ func (h *IdentityHandler) HandleLogoutAll(c *gin.Context) {
 
 	if err != nil {
 		h.logger.Info("Failed to get userID from access token", "error", err)
-		c.JSON(http.StatusUnauthorized, entities.ErrUnauthorized)
+		c.JSON(http.StatusUnauthorized, domain.ErrUnauthorized)
 		return
 	}
 
 	id, err := strconv.ParseInt(userID, 10, 32)
 	if err != nil {
 		h.logger.Info("User ID is invalid", "error", err)
-		c.JSON(http.StatusUnauthorized, entities.ErrUnauthorized)
+		c.JSON(http.StatusUnauthorized, domain.ErrUnauthorized)
 		return
 	}
 
@@ -471,7 +417,7 @@ func (h *IdentityHandler) HandleLogoutAll(c *gin.Context) {
 	})
 
 	if err != nil {
-		c.JSON(http.StatusServiceUnavailable, entities.ErrServiceUnavailable)
+		c.JSON(mapDomainError(err))
 		return
 	}
 

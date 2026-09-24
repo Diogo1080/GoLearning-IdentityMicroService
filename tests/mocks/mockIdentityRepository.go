@@ -1,6 +1,8 @@
 package mocks
 
 import (
+	"context"
+
 	"github.com/Diogo1080/GoLearning-IdentityMicroService/internal/domain"
 
 	"github.com/stretchr/testify/mock"
@@ -10,7 +12,7 @@ type MockIdentityRepository struct {
 	mock.Mock
 }
 
-func (m *MockIdentityRepository) GetUserByEmail(email string) (domain.User, error) {
+func (m *MockIdentityRepository) GetUserByEmail(ctx context.Context, email string) (domain.User, error) {
 	args := m.Called(email)
 
 	var user domain.User
@@ -21,7 +23,7 @@ func (m *MockIdentityRepository) GetUserByEmail(email string) (domain.User, erro
 	return user, args.Error(1)
 }
 
-func (m *MockIdentityRepository) GetUserByUsername(username string) (domain.User, error) {
+func (m *MockIdentityRepository) GetUserByUsername(ctx context.Context, username string) (domain.User, error) {
 	args := m.Called(username)
 
 	var user domain.User
@@ -32,7 +34,7 @@ func (m *MockIdentityRepository) GetUserByUsername(username string) (domain.User
 	return user, args.Error(1)
 }
 
-func (m *MockIdentityRepository) GetUserByID(id int) (domain.User, error) {
+func (m *MockIdentityRepository) GetUserByID(ctx context.Context, id int) (domain.User, error) {
 	args := m.Called(id)
 
 	var user domain.User
@@ -43,7 +45,7 @@ func (m *MockIdentityRepository) GetUserByID(id int) (domain.User, error) {
 	return user, args.Error(1)
 }
 
-func (m *MockIdentityRepository) CreateUser(user domain.User) (domain.User, error) {
+func (m *MockIdentityRepository) CreateUser(ctx context.Context, user domain.User) (domain.User, error) {
 	args := m.Called(user)
 
 	var createdUser domain.User
@@ -54,17 +56,17 @@ func (m *MockIdentityRepository) CreateUser(user domain.User) (domain.User, erro
 	return createdUser, args.Error(1)
 }
 
-func (m *MockIdentityRepository) UpdatePassword(id int, hashedPassword string) error {
+func (m *MockIdentityRepository) UpdatePassword(ctx context.Context, id int, hashedPassword string) error {
 	args := m.Called(id, hashedPassword)
 	return args.Error(0)
 }
 
-func (m *MockIdentityRepository) UpdateUser(id int, userInfo domain.User) error {
+func (m *MockIdentityRepository) UpdateUser(ctx context.Context, id int, userInfo domain.User) error {
 	args := m.Called(id, userInfo)
 	return args.Error(0)
 }
 
-func (m *MockIdentityRepository) DeleteUser(id int) error {
+func (m *MockIdentityRepository) DeleteUser(ctx context.Context, id int) error {
 	args := m.Called(id)
 	return args.Error(0)
 }

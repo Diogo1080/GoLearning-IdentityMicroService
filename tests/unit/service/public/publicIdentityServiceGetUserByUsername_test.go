@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	authv1 "github.com/Diogo1080/GoLearning-IdentityMicroService/api/v1"
-	entities "github.com/Diogo1080/GoLearning-IdentityMicroService/internal/domain"
+	"github.com/Diogo1080/GoLearning-IdentityMicroService/internal/domain"
 
 	"github.com/go-openapi/testify/v2/require"
 	"github.com/stretchr/testify/assert"
@@ -45,7 +45,7 @@ func TestPublicIdentityService_GetUserByUsername_UserNotFound(t *testing.T) {
 	repo, _, svc := newPublicIdentityService(t)
 
 	repo.On("GetUserByUsername", testUsername).
-		Return(entities.User{}, entities.ErrNotFound)
+		Return(domain.User{}, domain.ErrNotFound)
 
 	resp, err := svc.GetUserByUsername(
 		context.Background(),
@@ -55,7 +55,7 @@ func TestPublicIdentityService_GetUserByUsername_UserNotFound(t *testing.T) {
 	)
 
 	require.Error(t, err)
-	assert.ErrorIs(t, err, entities.ErrNotFound)
+	assert.ErrorIs(t, err, domain.ErrNotFound)
 	assert.NotNil(t, resp)
 
 	repo.AssertExpectations(t)

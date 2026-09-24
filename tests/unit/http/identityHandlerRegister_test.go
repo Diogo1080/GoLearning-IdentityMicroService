@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	authv1 "github.com/Diogo1080/GoLearning-IdentityMicroService/api/v1"
-	entities "github.com/Diogo1080/GoLearning-IdentityMicroService/internal/domain"
+	"github.com/Diogo1080/GoLearning-IdentityMicroService/internal/domain"
 	"github.com/Diogo1080/GoLearning-IdentityMicroService/tests/mocks"
 
 	"github.com/go-jose/go-jose/v4/testutils/require"
@@ -194,7 +194,7 @@ func TestHandleRegister_AlreadyExists(t *testing.T) {
 		ctx context.Context,
 		req *authv1.RegisterRequest,
 	) (*authv1.RegisterResponse, error) {
-		return nil, entities.ErrAlreadyExists
+		return nil, domain.ErrConflict
 	}
 
 	body := map[string]string{
@@ -236,5 +236,5 @@ func TestHandleRegister_ServiceError(t *testing.T) {
 
 	router.ServeHTTP(w, req)
 
-	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }

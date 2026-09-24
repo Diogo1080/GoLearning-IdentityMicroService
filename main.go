@@ -37,7 +37,7 @@ func main() {
 
 	identityRepo := store.NewSQLiteIdentityRepository(db)
 
-	lis, err := net.Listen("tcp", ":"+os.Getenv("PORT"))
+	lis, err := net.Listen("tcp", ":"+os.Getenv("GRPC_PORT"))
 	if err != nil {
 		log.Fatalf("Failed to listen: %v", err)
 	}

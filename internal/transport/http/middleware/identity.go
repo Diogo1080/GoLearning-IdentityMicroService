@@ -7,9 +7,9 @@ import (
 	"strings"
 
 	v1 "github.com/Diogo1080/GoLearning-IdentityMicroService/api/v1"
-	entities "github.com/Diogo1080/GoLearning-IdentityMicroService/internal/domain"
+	"github.com/Diogo1080/GoLearning-IdentityMicroService/internal/domain"
 	"github.com/Diogo1080/GoLearning-IdentityMicroService/internal/logger"
-	service "github.com/Diogo1080/GoLearning-IdentityMicroService/internal/service"
+	"github.com/Diogo1080/GoLearning-IdentityMicroService/internal/service"
 
 	"github.com/gin-gonic/gin"
 )
@@ -33,14 +33,14 @@ func (b *identityMiddlewareBuilder) Build() gin.HandlerFunc {
 		}
 
 		if tokenStr == "" {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, entities.ErrBadData)
+			c.AbortWithStatusJSON(http.StatusUnauthorized, domain.ErrBadRequest)
 			return
 		}
 
 		ctx := context.Background()
 		resp, err := b.iIdentityService.ValidateToken(ctx, &v1.ValidateTokenRequest{Token: tokenStr})
 		if err != nil || resp.UserId == 0 {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, entities.ErrBadData)
+			c.AbortWithStatusJSON(http.StatusUnauthorized, domain.ErrBadRequest)
 			return
 		}
 

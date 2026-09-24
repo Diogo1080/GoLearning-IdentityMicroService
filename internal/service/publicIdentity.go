@@ -4,9 +4,9 @@ import (
 	"log/slog"
 
 	authv1 "github.com/Diogo1080/GoLearning-IdentityMicroService/api/v1"
-	entities "github.com/Diogo1080/GoLearning-IdentityMicroService/internal/domain"
+	"github.com/Diogo1080/GoLearning-IdentityMicroService/internal/domain"
 	"github.com/Diogo1080/GoLearning-IdentityMicroService/internal/logger"
-	store "github.com/Diogo1080/GoLearning-IdentityMicroService/internal/store"
+	"github.com/Diogo1080/GoLearning-IdentityMicroService/internal/store"
 	"github.com/Diogo1080/GoLearning-IdentityMicroService/internal/validation"
 
 	"context"
@@ -33,21 +33,21 @@ func (s *PublicIdentityService) Register(ctx context.Context, req *authv1.Regist
 	s.logger.Info("Register attempt ", "request", req.String())
 
 	// Check if username or email already exists
-	_, err := s.repo.GetUserByEmail(req.Email)
+	_, err := s.repo.GetUserByEmail(ctx, req.Email)
 	if err == nil {
-		s.logger.Error("Error getting user: ", "err", entities.ErrAlreadyExists)
+		s.logger.Error("Error getting user: ", "err", domain.ErrConflict)
 		return &authv1.RegisterResponse{
 			Success: false,
-		}, entities.ErrAlreadyExists
+		}, domain.ErrConflict
 	}
 
 	// Check if username or email already exists
-	_, err = s.repo.GetUserByUsername(req.Username)
+	_, err = s.repo.GetUserByUsername(ctx, req.Username)
 	if err == nil {
-		s.logger.Error("Error getting user: ", "err", entities.ErrAlreadyExists)
+		s.logger.Error("Error getting user: ", "err", domain.ErrConflict)
 		return &authv1.RegisterResponse{
 			Success: false,
-		}, entities.ErrAlreadyExists
+		}, domain.ErrConflict
 	}
 
 	// Hash password
@@ -56,7 +56,7 @@ func (s *PublicIdentityService) Register(ctx context.Context, req *authv1.Regist
 		s.logger.Error("Error hashing password: ", "err", err)
 		return &authv1.RegisterResponse{
 			Success: false,
-		}, entities.ErrInternalServerError
+		}, domain.ErrInternal
 	}
 
 	birthdate, err := validation.ValidateDate(req.Birthdate)
@@ -67,19 +67,19 @@ func (s *PublicIdentityService) Register(ctx context.Context, req *authv1.Regist
 	}
 
 	// Create user
-	user := entities.User{
+	user := domain.User{
 		Username: req.Username,
 		Password: hashedPassword,
 		Birthday: birthdate,
 		Email:    req.Email,
 	}
 
-	createdUser, err := s.repo.CreateUser(user)
+	createdUser, err := s.repo.CreateUser(ctx, user)
 	if err != nil {
 		s.logger.Error("Error creating user: ", "err", err)
 		return &authv1.RegisterResponse{
 			Success: false,
-		}, entities.ErrInternalServerError
+		}, domain.ErrInternal
 	}
 
 	s.logger.Info("Register succesful.", "user", createdUser.ToUserDTO())
@@ -93,16 +93,16 @@ func (s *PublicIdentityService) Register(ctx context.Context, req *authv1.Regist
 func (s *PublicIdentityService) Login(ctx context.Context, req *authv1.LoginRequest) (*authv1.LoginResponse, error) {
 	s.logger.Info("Attempting Login", "request", req)
 
-	var user entities.User
+	var user domain.User
 	var err error
 
 	if validation.ValidateEmail(req.Usernameoremail) == nil {
-		user, err = s.repo.GetUserByEmail(req.Usernameoremail)
+		user, err = s.repo.GetUserByEmail(ctx, req.Usernameoremail)
 	} else if validation.ValidateUsername(req.Usernameoremail) == nil {
-		user, err = s.repo.GetUserByUsername(req.Usernameoremail)
+		user, err = s.repo.GetUserByUsername(ctx, req.Usernameoremail)
 	} else {
 		s.logger.Error("Invalid Username or Email")
-		return nil, entities.ErrBadData
+		return nil, domain.ErrBadRequest
 	}
 
 	if err != nil {
@@ -112,13 +112,13 @@ func (s *PublicIdentityService) Login(ctx context.Context, req *authv1.LoginRequ
 
 	if !VerifyPassword(req.Password, user.Password) {
 		s.logger.Error("Password doesn't match")
-		return nil, entities.ErrUnauthorized
+		return nil, domain.ErrUnauthorized
 	}
 
 	token, err := s.tokens.IssueTokens(ctx, strconv.Itoa(int(user.ID)))
 	if err != nil {
 		s.logger.Error("Error issuing tokens", "err", err)
-		return nil, entities.ErrInternalServerError
+		return nil, domain.ErrInternal
 	}
 
 	s.logger.Info("Login succesful.")
@@ -140,14 +140,14 @@ func (s *PublicIdentityService) RefreshLogin(ctx context.Context, req *authv1.Re
 	claims, err := s.tokens.ParseRefresh(req.RefreshToken)
 	if err != nil {
 		s.logger.Error("Invalid refresh token", "err", err)
-		return nil, entities.ErrUnauthorized
+		return nil, domain.ErrUnauthorized
 	}
 
 	// Make sure the refresh token's user + session are still valid.
 	ok, err := s.tokens.ValidateToken(ctx, claims)
 	if err != nil {
 		s.logger.Error("Error validating refresh token", "err", err)
-		return nil, entities.ErrUnauthorized
+		return nil, domain.ErrUnauthorized
 	}
 
 	if !ok {
@@ -156,7 +156,7 @@ func (s *PublicIdentityService) RefreshLogin(ctx context.Context, req *authv1.Re
 			"user_id", claims.Subject,
 			"session_id", claims.SessionID,
 		)
-		return nil, entities.ErrUnauthorized
+		return nil, domain.ErrUnauthorized
 	}
 
 	// Issue new tokens for the EXISTING session.
@@ -168,7 +168,7 @@ func (s *PublicIdentityService) RefreshLogin(ctx context.Context, req *authv1.Re
 
 	if err != nil {
 		s.logger.Error("Error refreshing tokens", "err", err)
-		return nil, entities.ErrInternalServerError
+		return nil, domain.ErrInternal
 	}
 
 	s.logger.Info(
@@ -179,7 +179,7 @@ func (s *PublicIdentityService) RefreshLogin(ctx context.Context, req *authv1.Re
 
 	userid, err := strconv.Atoi(claims.Subject)
 	if err != nil {
-		return nil, entities.ErrInternalServerError
+		return nil, domain.ErrInternal
 	}
 
 	return &authv1.LoginResponse{
@@ -197,7 +197,7 @@ func (s *PublicIdentityService) Logout(ctx context.Context, req *authv1.LogoutRe
 
 	if err != nil {
 		s.logger.Error("Error revoking tokens", "err", err)
-		return nil, entities.ErrInternalServerError
+		return nil, domain.ErrInternal
 	}
 
 	s.logger.Info("Logged out successfully")
@@ -214,7 +214,7 @@ func (s *PublicIdentityService) LogoutAll(ctx context.Context, req *authv1.Logou
 
 	if err != nil {
 		s.logger.Error("Error revoking tokens", "err", err)
-		return nil, entities.ErrInternalServerError
+		return nil, domain.ErrInternal
 	}
 
 	s.logger.Info("Logged out successfully")
@@ -226,7 +226,7 @@ func (s *PublicIdentityService) LogoutAll(ctx context.Context, req *authv1.Logou
 
 func (s *PublicIdentityService) GetUserByID(ctx context.Context, req *authv1.GetUserRequest) (*authv1.GetUserResponse, error) {
 	s.logger.Info("Attempting getting user", "request", req)
-	user, err := s.repo.GetUserByID(int(req.Id))
+	user, err := s.repo.GetUserByID(ctx, int(req.Id))
 
 	if err != nil {
 		s.logger.Error("Failed getting user", "err", err)
@@ -244,7 +244,7 @@ func (s *PublicIdentityService) GetUserByID(ctx context.Context, req *authv1.Get
 
 func (s *PublicIdentityService) GetUserByEmail(ctx context.Context, req *authv1.GetUserRequest) (*authv1.GetUserResponse, error) {
 	s.logger.Info("Attempting getting user", "request", req)
-	user, err := s.repo.GetUserByEmail(req.Email)
+	user, err := s.repo.GetUserByEmail(ctx, req.Email)
 
 	if err != nil {
 		s.logger.Error("Failed getting user", "err", err)
@@ -262,7 +262,7 @@ func (s *PublicIdentityService) GetUserByEmail(ctx context.Context, req *authv1.
 
 func (s *PublicIdentityService) GetUserByUsername(ctx context.Context, req *authv1.GetUserRequest) (*authv1.GetUserResponse, error) {
 	s.logger.Info("Attempting getting user", "request", req)
-	user, err := s.repo.GetUserByUsername(req.Username)
+	user, err := s.repo.GetUserByUsername(ctx, req.Username)
 
 	if err != nil {
 		s.logger.Error("Failed getting user", "err", err)
@@ -281,7 +281,7 @@ func (s *PublicIdentityService) GetUserByUsername(ctx context.Context, req *auth
 func (s *PublicIdentityService) UpdateUser(ctx context.Context, req *authv1.UpdateUserRequest) (*authv1.UpdateUserResponse, error) {
 	s.logger.Info("Attempting update user", "request", req)
 
-	tochange, err := s.repo.GetUserByID(int(req.UserId))
+	tochange, err := s.repo.GetUserByID(ctx, int(req.UserId))
 	if err != nil {
 		return &authv1.UpdateUserResponse{Success: false}, err
 	}
@@ -295,7 +295,7 @@ func (s *PublicIdentityService) UpdateUser(ctx context.Context, req *authv1.Upda
 		return &authv1.UpdateUserResponse{Success: false}, err
 	}
 
-	err = s.repo.UpdateUser(int(req.UserId), tochange)
+	err = s.repo.UpdateUser(ctx, int(req.UserId), tochange)
 
 	if err != nil {
 		s.logger.Error("Failed Updating user", "err", err)
@@ -308,7 +308,7 @@ func (s *PublicIdentityService) UpdateUser(ctx context.Context, req *authv1.Upda
 
 func (s *PublicIdentityService) ChangePassword(ctx context.Context, req *authv1.ChangePasswordRequest) (*authv1.ChangePasswordResponse, error) {
 	s.logger.Info("Attempting update password", "request", req)
-	tochange, err := s.repo.GetUserByID(int(req.UserId))
+	tochange, err := s.repo.GetUserByID(ctx, int(req.UserId))
 
 	if err != nil {
 		return &authv1.ChangePasswordResponse{Success: false}, err
@@ -316,17 +316,17 @@ func (s *PublicIdentityService) ChangePassword(ctx context.Context, req *authv1.
 
 	if !VerifyPassword(req.CurrentPassword, tochange.Password) {
 		s.logger.Error("Password doesn't match")
-		return &authv1.ChangePasswordResponse{Success: false}, entities.ErrUnauthorized
+		return &authv1.ChangePasswordResponse{Success: false}, domain.ErrUnauthorized
 	}
 
 	pass, err := HashPassword(req.NewPassword)
 
 	if err != nil {
 		s.logger.Error("Failed while hashing password")
-		return &authv1.ChangePasswordResponse{Success: false}, entities.ErrInternalServerError
+		return &authv1.ChangePasswordResponse{Success: false}, domain.ErrInternal
 	}
 
-	err = s.repo.UpdatePassword(int(req.UserId), pass)
+	err = s.repo.UpdatePassword(ctx, int(req.UserId), pass)
 
 	if err != nil {
 		s.logger.Error("Failed Updating user", "err", err)
@@ -341,13 +341,13 @@ func (s *PublicIdentityService) ChangePassword(ctx context.Context, req *authv1.
 
 func (s *PublicIdentityService) DeleteUser(ctx context.Context, req *authv1.DeleteUserRequest) (*authv1.DeleteUserResponse, error) {
 	s.logger.Info("Attempting to delete user", "request", req)
-	_, err := s.repo.GetUserByID(int(req.UserId))
+	_, err := s.repo.GetUserByID(ctx, int(req.UserId))
 
 	if err != nil {
 		return &authv1.DeleteUserResponse{Success: false}, err
 	}
 
-	err = s.repo.DeleteUser(int(req.UserId))
+	err = s.repo.DeleteUser(ctx, int(req.UserId))
 
 	if err != nil {
 		return &authv1.DeleteUserResponse{Success: false}, err

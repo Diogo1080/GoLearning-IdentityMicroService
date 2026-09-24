@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	authv1 "github.com/Diogo1080/GoLearning-IdentityMicroService/api/v1"
-	entities "github.com/Diogo1080/GoLearning-IdentityMicroService/internal/domain"
+	"github.com/Diogo1080/GoLearning-IdentityMicroService/internal/domain"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -52,7 +52,7 @@ func TestPublicIdentityService_Logout_InvalidSessionID(t *testing.T) {
 	) error {
 		assert.Equal(t, "", sessionID)
 
-		return entities.ErrNotFound
+		return domain.ErrNotFound
 	}
 
 	resp, err := svc.Logout(
@@ -63,7 +63,7 @@ func TestPublicIdentityService_Logout_InvalidSessionID(t *testing.T) {
 	)
 
 	assert.Nil(t, resp)
-	assert.ErrorIs(t, err, entities.ErrInternalServerError)
+	assert.ErrorIs(t, err, domain.ErrInternal)
 
 	repo.AssertExpectations(t)
 }
@@ -90,7 +90,7 @@ func TestPublicIdentityService_Logout_RevokeSessionError(t *testing.T) {
 	)
 
 	assert.Nil(t, resp)
-	assert.ErrorIs(t, err, entities.ErrInternalServerError)
+	assert.ErrorIs(t, err, domain.ErrInternal)
 
 	repo.AssertExpectations(t)
 }

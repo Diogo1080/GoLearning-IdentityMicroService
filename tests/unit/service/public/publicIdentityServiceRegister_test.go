@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	authv1 "github.com/Diogo1080/GoLearning-IdentityMicroService/api/v1"
-	entities "github.com/Diogo1080/GoLearning-IdentityMicroService/internal/domain"
+	"github.com/Diogo1080/GoLearning-IdentityMicroService/internal/domain"
 
 	"github.com/go-openapi/testify/v2/require"
 	"github.com/stretchr/testify/assert"
@@ -24,10 +24,10 @@ func TestPublicIdentityService_Register_Success(t *testing.T) {
 	// Adapt these expectations to your MockIdentityRepository
 	// implementation if it doesn't use testify/mock.
 	repo.On("GetUserByEmail", testEmail).
-		Return(entities.User{}, entities.ErrNotFound)
+		Return(domain.User{}, domain.ErrNotFound)
 
 	repo.On("GetUserByUsername", testUsername).
-		Return(entities.User{}, entities.ErrNotFound)
+		Return(domain.User{}, domain.ErrNotFound)
 
 	repo.On("CreateUser", mock.AnythingOfType("domain.User")).
 		Return(createdUser, nil)
@@ -71,7 +71,7 @@ func TestPublicIdentityService_Register_EmailAlreadyExists(t *testing.T) {
 
 	require.Error(t, err)
 
-	assert.ErrorIs(t, err, entities.ErrAlreadyExists)
+	assert.ErrorIs(t, err, domain.ErrConflict)
 	assert.False(t, resp.Success)
 
 	repo.AssertExpectations(t)
@@ -81,7 +81,7 @@ func TestPublicIdentityService_Register_UsernameAlreadyExists(t *testing.T) {
 	repo, _, svc := newPublicIdentityService(t)
 
 	repo.On("GetUserByEmail", testEmail).
-		Return(entities.User{}, entities.ErrNotFound)
+		Return(domain.User{}, domain.ErrNotFound)
 
 	repo.On("GetUserByUsername", testUsername).
 		Return(testUser(), nil)
@@ -98,7 +98,7 @@ func TestPublicIdentityService_Register_UsernameAlreadyExists(t *testing.T) {
 
 	require.Error(t, err)
 
-	assert.ErrorIs(t, err, entities.ErrAlreadyExists)
+	assert.ErrorIs(t, err, domain.ErrConflict)
 	assert.False(t, resp.Success)
 
 	repo.AssertExpectations(t)
@@ -108,13 +108,13 @@ func TestPublicIdentityService_Register_CreateUserError(t *testing.T) {
 	repo, _, svc := newPublicIdentityService(t)
 
 	repo.On("GetUserByEmail", testEmail).
-		Return(entities.User{}, entities.ErrNotFound)
+		Return(domain.User{}, domain.ErrNotFound)
 
 	repo.On("GetUserByUsername", testUsername).
-		Return(entities.User{}, entities.ErrNotFound)
+		Return(domain.User{}, domain.ErrNotFound)
 
 	repo.On("CreateUser", mock.AnythingOfType("domain.User")).
-		Return(entities.User{}, assert.AnError)
+		Return(domain.User{}, assert.AnError)
 
 	resp, err := svc.Register(
 		context.Background(),
@@ -128,7 +128,7 @@ func TestPublicIdentityService_Register_CreateUserError(t *testing.T) {
 
 	require.Error(t, err)
 
-	assert.ErrorIs(t, err, entities.ErrInternalServerError)
+	assert.ErrorIs(t, err, domain.ErrInternal)
 	assert.False(t, resp.Success)
 
 	repo.AssertExpectations(t)

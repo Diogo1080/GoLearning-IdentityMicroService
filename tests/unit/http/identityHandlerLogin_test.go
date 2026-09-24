@@ -87,7 +87,7 @@ func TestHandleLogin_ServiceError(t *testing.T) {
 
 	assert.Equal(
 		t,
-		http.StatusServiceUnavailable,
+		http.StatusInternalServerError,
 		w.Code,
 	)
 }

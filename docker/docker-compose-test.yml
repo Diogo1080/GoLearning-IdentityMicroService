@@ -1,5 +1,5 @@
 services:
-  app-test:
+  identity-service-test:
     build:
       context: ..
       dockerfile: ./docker/Dockerfile
@@ -8,17 +8,17 @@ services:
 
     ports:
       - "8081:8081"
-      - "9091:9091"
+      - "50052:50052"
 
     environment:
       APP_ENV: test
       APP_PORT: 8081
-      GRPC_PORT: 9091
+      GRPC_PORT: 50052
 
       ACCESS_SECRET: test
       REFRESH_SECRET: test
       
-      DB_HOST: postgres-test
+      DB_HOST: identity-postgres-test
       DB_PORT: 5432
       DB_USER: test
       DB_SECRET: test
@@ -52,7 +52,7 @@ services:
       POSTGRES_DB: identity_test
 
     volumes:
-      - postgres-test-data:/var/lib/postgresql/data
+      - postgres-identity-test-data:/var/lib/postgresql/data
       - ./init-db.sql:/docker-entrypoint-initdb.d/10-init-db.sql
 
     command: >
@@ -92,7 +92,7 @@ services:
       - "yes"
 
     volumes:
-      - redis-test-data:/data
+      - redis-identity-test-data:/data
 
     healthcheck:
       test:
@@ -112,8 +112,8 @@ services:
 
 networks:
   todo-test-network:
-    driver: bridge
+    external: true
 
 volumes:
-  postgres-test-data:
-  redis-test-data:
+  postgres-identity-test-data:
+  redis-identity-test-data:

@@ -6,9 +6,9 @@ import (
 	"strconv"
 
 	authv1 "github.com/Diogo1080/GoLearning-IdentityMicroService/api/v1"
-	entities "github.com/Diogo1080/GoLearning-IdentityMicroService/internal/domain"
+	"github.com/Diogo1080/GoLearning-IdentityMicroService/internal/domain"
 	"github.com/Diogo1080/GoLearning-IdentityMicroService/internal/logger"
-	store "github.com/Diogo1080/GoLearning-IdentityMicroService/internal/store"
+	"github.com/Diogo1080/GoLearning-IdentityMicroService/internal/store"
 )
 
 type InternalIdentityService struct {
@@ -37,13 +37,13 @@ func (s *InternalIdentityService) ValidateToken(ctx context.Context, req *authv1
 	claims, err := s.tokens.ParseAccess(req.Token)
 	if err != nil {
 		s.logger.Error("Invalid token", "err", err)
-		return nil, entities.ErrUnauthorized
+		return nil, domain.ErrUnauthorized
 	}
 
 	ok, err := s.tokens.ValidateToken(ctx, claims)
 	if err != nil {
 		s.logger.Error("Error validating token", "err", err)
-		return nil, entities.ErrInternalServerError
+		return nil, domain.ErrInternal
 	}
 
 	if !ok {
@@ -52,13 +52,13 @@ func (s *InternalIdentityService) ValidateToken(ctx context.Context, req *authv1
 			"user_id", claims.Subject,
 			"session_id", claims.SessionID,
 		)
-		return nil, entities.ErrUnauthorized
+		return nil, domain.ErrUnauthorized
 	}
 
 	userID, err := strconv.ParseInt(claims.Subject, 10, 32)
 	if err != nil {
 		s.logger.Error("Invalid user ID", "err", err)
-		return nil, entities.ErrInternalServerError
+		return nil, domain.ErrInternal
 	}
 
 	s.logger.Info(

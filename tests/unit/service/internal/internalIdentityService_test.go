@@ -177,7 +177,7 @@ func TestValidateToken_ValidationError(t *testing.T) {
 	)
 
 	assert.Nil(t, resp)
-	assert.ErrorIs(t, err, entities.ErrInternalServerError)
+	assert.ErrorIs(t, err, entities.ErrInternal)
 }
 
 func TestValidateToken_InvalidUserID(t *testing.T) {
@@ -209,7 +209,7 @@ func TestValidateToken_InvalidUserID(t *testing.T) {
 	)
 
 	assert.Nil(t, resp)
-	assert.ErrorIs(t, err, entities.ErrInternalServerError)
+	assert.ErrorIs(t, err, entities.ErrInternal)
 }
 
 func TestValidateToken_UserIDTooLargeForInt32(t *testing.T) {
@@ -241,7 +241,7 @@ func TestValidateToken_UserIDTooLargeForInt32(t *testing.T) {
 	)
 
 	assert.Nil(t, resp)
-	assert.ErrorIs(t, err, entities.ErrInternalServerError)
+	assert.ErrorIs(t, err, entities.ErrInternal)
 }
 
 func TestValidateToken_NegativeUserID(t *testing.T) {

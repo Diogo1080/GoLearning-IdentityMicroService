@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	authv1 "github.com/Diogo1080/GoLearning-IdentityMicroService/api/v1"
-	entities "github.com/Diogo1080/GoLearning-IdentityMicroService/internal/domain"
+	"github.com/Diogo1080/GoLearning-IdentityMicroService/internal/domain"
 	"github.com/Diogo1080/GoLearning-IdentityMicroService/tests/mocks"
 
 	"github.com/stretchr/testify/assert"
@@ -139,7 +139,7 @@ func TestHandleUpdateUser_NotFound(t *testing.T) {
 		ctx context.Context,
 		req *authv1.UpdateUserRequest,
 	) (*authv1.UpdateUserResponse, error) {
-		return nil, entities.ErrNotFound
+		return nil, domain.ErrNotFound
 	}
 
 	body := map[string]string{

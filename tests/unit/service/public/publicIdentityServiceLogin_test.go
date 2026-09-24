@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	authv1 "github.com/Diogo1080/GoLearning-IdentityMicroService/api/v1"
-	entities "github.com/Diogo1080/GoLearning-IdentityMicroService/internal/domain"
+	domain "github.com/Diogo1080/GoLearning-IdentityMicroService/internal/domain"
 	"github.com/Diogo1080/GoLearning-IdentityMicroService/internal/tokens"
 
 	"github.com/stretchr/testify/assert"
@@ -99,7 +99,7 @@ func TestPublicIdentityService_Login_InvalidUsernameOrEmail(t *testing.T) {
 	)
 
 	assert.Nil(t, resp)
-	assert.ErrorIs(t, err, entities.ErrBadData)
+	assert.ErrorIs(t, err, domain.ErrBadRequest)
 
 	repo.AssertExpectations(t)
 }
@@ -108,7 +108,7 @@ func TestPublicIdentityService_Login_UserNotFound(t *testing.T) {
 	repo, _, svc := newPublicIdentityService(t)
 
 	repo.On("GetUserByEmail", testEmail).
-		Return(entities.User{}, entities.ErrNotFound)
+		Return(domain.User{}, domain.ErrNotFound)
 
 	resp, err := svc.Login(
 		context.Background(),
@@ -119,7 +119,7 @@ func TestPublicIdentityService_Login_UserNotFound(t *testing.T) {
 	)
 
 	assert.Nil(t, resp)
-	assert.ErrorIs(t, err, entities.ErrNotFound)
+	assert.ErrorIs(t, err, domain.ErrNotFound)
 
 	repo.AssertExpectations(t)
 }
@@ -139,7 +139,7 @@ func TestPublicIdentityService_Login_WrongPassword(t *testing.T) {
 	)
 
 	assert.Nil(t, resp)
-	assert.ErrorIs(t, err, entities.ErrUnauthorized)
+	assert.ErrorIs(t, err, domain.ErrUnauthorized)
 
 	repo.AssertExpectations(t)
 }
@@ -170,7 +170,7 @@ func TestPublicIdentityService_Login_TokenIssuanceError(t *testing.T) {
 	)
 
 	assert.Nil(t, resp)
-	assert.ErrorIs(t, err, entities.ErrInternalServerError)
+	assert.ErrorIs(t, err, domain.ErrInternal)
 
 	repo.AssertExpectations(t)
 }

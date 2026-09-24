@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	authv1 "github.com/Diogo1080/GoLearning-IdentityMicroService/api/v1"
-	entities "github.com/Diogo1080/GoLearning-IdentityMicroService/internal/domain"
+	"github.com/Diogo1080/GoLearning-IdentityMicroService/internal/domain"
 	"github.com/Diogo1080/GoLearning-IdentityMicroService/tests/mocks"
 
 	"github.com/gin-gonic/gin"
@@ -163,7 +163,7 @@ func TestHandleLogout_TokenParseError(t *testing.T) {
 	tokenManager := &mocks.MockTokenManager{}
 
 	tokenManager.GetSessionIDFromAccessTokenFunc = func(token string) (string, error) {
-		return "", entities.ErrUnauthorized
+		return "", domain.ErrUnauthorized
 	}
 
 	tokenManager.ClearAuthCookiesFunc = func(c *gin.Context) {}
@@ -213,7 +213,7 @@ func TestHandleLogout_ServiceError(t *testing.T) {
 		req *authv1.LogoutRequest,
 	) (*authv1.LogoutResponse, error) {
 		assert.Equal(t, "session-A", req.SessionId)
-		return nil, entities.ErrInternalServerError
+		return nil, domain.ErrInternal
 	}
 
 	req := httptest.NewRequest(http.MethodPost, "/logout", nil)
@@ -227,7 +227,7 @@ func TestHandleLogout_ServiceError(t *testing.T) {
 
 	router.ServeHTTP(w, req)
 
-	require.Equal(t, http.StatusUnauthorized, w.Code)
+	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
 // ============================================================
@@ -404,7 +404,7 @@ func TestHandleLogoutAll_ServiceError(t *testing.T) {
 
 	router.ServeHTTP(w, req)
 
-	require.Equal(t, http.StatusServiceUnavailable, w.Code)
+	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
 func TestHandleLogoutAll_PassesAuthenticatedUser(t *testing.T) {

@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	authv1 "github.com/Diogo1080/GoLearning-IdentityMicroService/api/v1"
-	entities "github.com/Diogo1080/GoLearning-IdentityMicroService/internal/domain"
+	"github.com/Diogo1080/GoLearning-IdentityMicroService/internal/domain"
 	"github.com/Diogo1080/GoLearning-IdentityMicroService/tests/mocks"
 
 	"github.com/go-openapi/testify/v2/require"
@@ -57,7 +57,7 @@ func TestHandleDeleteUser_Success(t *testing.T) {
 	var response map[string]interface{}
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
 
-	assert.Equal(t, "user deleted successfully", response["message"])
+	assert.Equal(t, "Success", response["message"])
 }
 
 func TestHandleDeleteUser_NoToken(t *testing.T) {
@@ -168,7 +168,7 @@ func TestHandleDeleteUser_NotFound(t *testing.T) {
 		ctx context.Context,
 		req *authv1.DeleteUserRequest,
 	) (*authv1.DeleteUserResponse, error) {
-		return nil, entities.ErrNotFound
+		return nil, domain.ErrNotFound
 	}
 
 	req := authenticatedRequest(t,
