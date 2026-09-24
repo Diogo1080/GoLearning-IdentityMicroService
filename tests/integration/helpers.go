@@ -195,7 +195,7 @@ func getUserByID(t *testing.T, userID int, token string) UserResponse {
 	status, body := doRequest(
 		t,
 		http.MethodGet,
-		fmt.Sprintf("/user/id/%d", userID),
+		"/user/me",
 		token,
 		nil,
 	)

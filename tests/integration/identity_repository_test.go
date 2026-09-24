@@ -675,85 +675,16 @@ func TestIntegration_GetUserByID_NotFound(t *testing.T) {
 }
 
 // ============================================================
-// GET USER BY EMAIL
+// GET USER
 // ============================================================
 
-func TestIntegration_GetUserByEmail(t *testing.T) {
+func TestIntegration_GetUser_Token(t *testing.T) {
 	user, auth := createTestUser(t)
 
 	status, body := doRequest(
 		t,
 		http.MethodGet,
-		"/user/email/"+user.Email,
-		auth.AccessToken,
-		nil,
-	)
-
-	if status != http.StatusOK && status != http.StatusFound {
-		t.Fatalf(
-			"Expected 200/302, got %d: %s",
-			status,
-			string(body),
-		)
-	}
-
-	var stored UserResponse
-
-	if err := json.Unmarshal(body, &stored); err != nil {
-		t.Fatalf(
-			"Failed to decode response: %v",
-			err,
-		)
-	}
-
-	if stored.ID != int32(user.UserID) {
-		t.Errorf(
-			"Expected ID %f, got %d",
-			user.UserID,
-			stored.ID,
-		)
-	}
-
-	if stored.Email != user.Email {
-		t.Errorf(
-			"Expected email %q, got %q",
-			user.Email,
-			stored.Email,
-		)
-	}
-}
-
-func TestIntegration_GetUserByEmail_NotFound(t *testing.T) {
-	_, auth := createTestUser(t)
-
-	status, body := doRequest(
-		t,
-		http.MethodGet,
-		"/user/email/nonexistent_"+fmt.Sprintf("%d", time.Now().UnixNano())+"@test.com",
-		auth.AccessToken,
-		nil,
-	)
-
-	if status != http.StatusNotFound {
-		t.Fatalf(
-			"Expected 404, got %d: %s",
-			status,
-			string(body),
-		)
-	}
-}
-
-// ============================================================
-// GET USER BY USERNAME
-// ============================================================
-
-func TestIntegration_GetUserByUsername(t *testing.T) {
-	user, auth := createTestUser(t)
-
-	status, body := doRequest(
-		t,
-		http.MethodGet,
-		"/user/name/"+user.Username,
+		"/user/me",
 		auth.AccessToken,
 		nil,
 	)
@@ -792,28 +723,17 @@ func TestIntegration_GetUserByUsername(t *testing.T) {
 	}
 }
 
-func TestIntegration_GetUserByUsername_NotFound(t *testing.T) {
-	_, auth := createTestUser(t)
-
-	username := fmt.Sprintf(
-		"nonexistent_%d",
-		time.Now().UnixNano(),
-	)
-
+func TestIntegration_GetCurrentUser_NoToken(t *testing.T) {
 	status, body := doRequest(
 		t,
 		http.MethodGet,
-		"/user/username/"+username,
-		auth.AccessToken,
+		"/user/me",
+		"",
 		nil,
 	)
 
-	if status != http.StatusNotFound {
-		t.Fatalf(
-			"Expected 404, got %d: %s",
-			status,
-			string(body),
-		)
+	if status != http.StatusUnauthorized {
+		t.Fatalf("Expected 401, got %d: %s", status, string(body))
 	}
 }
 

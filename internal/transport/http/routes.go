@@ -29,8 +29,7 @@ func RegisterRoutes(r *gin.Engine, identityHandler *IdentityHandler, identiyMidd
 	protected.Use(identiyMiddleware)
 
 	// User endpoints (profile management only)
-	protected.GET("/users/me", identityHandler.HandleGetCurrentUser)
-	protected.GET("/user/email/:email", identityHandler.HandleGetUserByEmail)
+	protected.GET("/user/me", identityHandler.HandleGetCurrentUser)
 	protected.PATCH("/user/password/:id", identityHandler.HandleUpdatePassword)
 	protected.PUT("/user", identityHandler.HandleUpdateUser)
 	protected.DELETE("/user/id/:id", identityHandler.HandleDeleteUser)

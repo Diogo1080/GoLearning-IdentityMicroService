@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"database/sql"
 	"embed"
 	"fmt"
@@ -14,18 +15,27 @@ import (
 var migrationFiles embed.FS
 
 func RunMigrations(db *sql.DB) error {
-	databaseDriver, err := postgres.WithInstance(db, &postgres.Config{})
+	ctx := context.Background()
+	migrationConn, err := db.Conn(ctx)
 	if err != nil {
+		return fmt.Errorf("open migration connection: %w", err)
+	}
+
+	databaseDriver, err := postgres.WithConnection(ctx, migrationConn, &postgres.Config{})
+	if err != nil {
+		_ = migrationConn.Close()
 		return fmt.Errorf("create migration database driver: %w", err)
 	}
 
 	sourceDriver, err := iofs.New(migrationFiles, "migrations")
 	if err != nil {
+		_ = databaseDriver.Close()
 		return fmt.Errorf("create migration source driver: %w", err)
 	}
 
 	migrationRunner, err := migrate.NewWithInstance("iofs", sourceDriver, "postgres", databaseDriver)
 	if err != nil {
+		_ = databaseDriver.Close()
 		return fmt.Errorf("create migration runner: %w", err)
 	}
 	defer func() {
