@@ -13,7 +13,7 @@ The app persists user data in PostgreSQL, uses Redis for token/session state, an
 - Run only integration tests: `go test ./tests/integration/...`
 - Start the Docker-based integration environment defined in [docker/docker-compose-test.yml](docker/docker-compose-test.yml): `docker compose -f docker/docker-compose-test.yml up -d`
 
-The integration tests expect the service to be reachable at `http://localhost:8081/api` and rely on the postgres/redis containers declared in [docker/docker-compose-test.yml](docker/docker-compose-test.yml).
+The integration tests expect the service to be reachable at `http://localhost:9001/api` and rely on the postgres/redis containers declared in [docker/docker-compose-test.yml](docker/docker-compose-test.yml).
 
 ## Architecture conventions
 - Keep HTTP handlers thin and focused on request/response translation; they should not contain persistence logic.

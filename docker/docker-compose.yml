@@ -6,8 +6,7 @@ services:
       dockerfile: ./docker/Dockerfile
     container_name: identity-app
     ports:
-      - "${APP_PORT}:${APP_PORT}"
-      - "${GRPC_PORT}:${GRPC_PORT}"
+      - "${APP_PORT:-9000}:9000"
     env_file:
       - ../.env
     environment:
@@ -19,6 +18,7 @@ services:
       - DB_USER=${DB_USER}
       - DB_SECRET=${DB_SECRET}
       - DB_NAME=${DB_NAME}
+      - DB_SSLMODE=${DB_SSLMODE:-disable}
       - REDIS_HOST=${REDIS_HOST}
       - REDIS_PORT=${REDIS_PORT}
     depends_on:
@@ -29,13 +29,19 @@ services:
     networks:
       - todo-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:9000/api/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
 
   # PostgreSQL Database (user data only, tokens in Redis)
   postgres:
     image: postgres:15-alpine
     container_name: identity-postgres
     ports:
-      - "${DB_PORT}:${DB_PORT}"
+      - "${DB_PORT:-5432}:5432"
     environment:
       - POSTGRES_USER=${DB_USER}
       - POSTGRES_PASSWORD=${DB_SECRET}
@@ -64,7 +70,7 @@ services:
     container_name: identity-redis
     command: redis-server --appendonly yes
     ports:
-      - "${REDIS_PORT}:${REDIS_PORT}"
+      - "${REDIS_PORT:-6379}:6379"
     volumes:
       - redis-data:/data
     healthcheck:

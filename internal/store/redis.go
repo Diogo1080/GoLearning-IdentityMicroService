@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"strconv"
 
 	"github.com/redis/go-redis/v9"
@@ -20,11 +19,7 @@ type Redis struct {
 	Client *redis.Client
 }
 
-func NewRedis() *Redis {
-	host := os.Getenv("REDIS_HOST")
-	port := os.Getenv("REDIS_PORT")
-	password := os.Getenv("REDIS_PASSWORD")
-
+func NewRedis(host, port, password string) *Redis {
 	addr := fmt.Sprintf("%s:%s", host, port)
 
 	rdb := redis.NewClient(&redis.Options{

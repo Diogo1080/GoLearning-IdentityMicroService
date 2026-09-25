@@ -7,16 +7,15 @@ services:
     container_name: identity-test-app
 
     ports:
-      - "8081:8081"
-      - "50052:50052"
+      - "9001:9001"
 
     environment:
       APP_ENV: test
-      APP_PORT: 8081
+      APP_PORT: 9001
       GRPC_PORT: 50052
 
-      ACCESS_SECRET: test
-      REFRESH_SECRET: test
+      ACCESS_SECRET: testWithlongAccessSecret-uawhdiljfiejlfiejlfij
+      REFRESH_SECRET: testWithlongRefreshSecret-uawhdiljfiejlfiejlfij
       
       DB_HOST: identity-postgres-test
       DB_PORT: 5432
@@ -38,6 +37,12 @@ services:
       - todo-test-network
 
     restart: "no"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:9001/api/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
 
   postgres-test:
     image: postgres:15-alpine

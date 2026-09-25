@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/Diogo1080/GoLearning-IdentityMicroService/internal/domain"
@@ -56,11 +55,17 @@ type Tokens struct {
 }
 
 type TokenManager struct {
-	rds *store.Redis
+	rds           *store.Redis
+	accessSecret  string
+	refreshSecret string
 }
 
-func NewTokenManager(rds *store.Redis) *TokenManager {
-	return &TokenManager{rds: rds}
+func NewTokenManager(rds *store.Redis, accessSecret, refreshSecret string) (*TokenManager, error) {
+	if len(accessSecret) < 32 || len(refreshSecret) < 32 {
+		return nil, errors.New("access and refresh secrets must be at least 32 characters")
+	}
+
+	return &TokenManager{rds: rds, accessSecret: accessSecret, refreshSecret: refreshSecret}, nil
 }
 
 // IssueTokens creates a new session and issues an access + refresh token pair.
@@ -173,14 +178,14 @@ func (tm *TokenManager) issueTokensForSession(ctx context.Context, r *store.Redi
 	)
 
 	t.Access, err = access.SignedString(
-		[]byte(os.Getenv("ACCESS_SECRET")),
+		[]byte(tm.accessSecret),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("sign access token: %w", err)
 	}
 
 	t.Refresh, err = refresh.SignedString(
-		[]byte(os.Getenv("REFRESH_SECRET")),
+		[]byte(tm.refreshSecret),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("sign refresh token: %w", err)
@@ -207,9 +212,7 @@ func (tm *TokenManager) ClearAuthCookies(c *gin.Context) {
 
 // ParseAccess parses and validates an access token.
 func (tm *TokenManager) ParseAccess(tokenStr string) (*Claims, error) {
-	secret := os.Getenv("ACCESS_SECRET")
-
-	claims, err := tm.parseWithSecret(tokenStr, secret)
+	claims, err := tm.parseWithSecret(tokenStr, tm.accessSecret)
 	if err != nil {
 		return nil, err
 	}
@@ -223,9 +226,7 @@ func (tm *TokenManager) ParseAccess(tokenStr string) (*Claims, error) {
 
 // ParseRefresh parses and validates a refresh token.
 func (tm *TokenManager) ParseRefresh(tokenStr string) (*Claims, error) {
-	secret := os.Getenv("REFRESH_SECRET")
-
-	claims, err := tm.parseWithSecret(tokenStr, secret)
+	claims, err := tm.parseWithSecret(tokenStr, tm.refreshSecret)
 	if err != nil {
 		return nil, err
 	}

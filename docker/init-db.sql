@@ -1,2 +1,0 @@
--- Schema is managed by the embedded golang-migrate runner at application startup.
--- Keep this file as a no-op for existing Docker Compose volume configurations.

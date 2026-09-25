@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-var baseURL = "http://localhost:8081/api"
+var baseURL = "http://localhost:9001/api"
 
 // TestUser holds credentials for test users (stored locally, not from API)
 type TestUser struct {
